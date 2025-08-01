@@ -1,0 +1,92 @@
+#ifndef KAISER_HPP
+#define KAISER_HPP
+
+#include <cmath>
+#include <vector>
+
+#ifndef M_PI
+#define M_PI 3.1415926535897932384626433832795028842
+#endif
+
+namespace shibatch {
+  class KaiserWindow {
+  public:
+    static double sinc(double x) { return x == 0 ? 1 : (sin(x) / x); }
+
+    /**
+     * @param aa : stop band attenuation (dB)
+     */
+    static double alpha(double aa) {
+      if (aa <= 21) return 0;
+      if (aa <= 50) return 0.5842 * pow(aa - 21, 0.4) + 0.07886 * (aa - 21);
+      return 0.1102 * (aa - 8.7);
+    }
+
+    static double izero(double x, int M = 30) {
+      double ret = 1;
+      for(int m = M;m >= 1;m--) {
+	double t = pow(x/2, m) / tgamma(m + 1);
+	ret += t * t;
+      }
+      return ret;
+    }
+
+    /**
+     * @param aa : stop band attenuation (dB)
+     * @param fs : sampleing frequency (Hz)
+     * @param df : transition band width (Hz)
+     */
+    static int length(double aa, double fs, double df) {
+      double d = aa <= 21 ? 0.9222 : (aa-7.95)/14.36;
+      int len = fs * d / df + 1;
+      if ((len & 1) == 0) len++;
+      return len;
+    }
+
+    static double window(int n, int len, double alp, double iza) {
+      if (n > len - 1) return 0;
+      return izero(alp * sqrt(1 - 4.0*n*n/((len-1.0)*(len-1.0)))) / iza;
+    }
+
+    /**
+     * @param fp : pass-band edge frequency (Hz)
+     * @param fs : sampleing frequency (Hz)
+     */
+    static double hn_lpf(int n, double fp, double fs) {
+      double t = 1.0 / fs;
+      double omega = 2 * M_PI * fp;
+      return 2 * fp * t * sinc(n * omega * t);
+    }
+
+    /**
+     * @param fs : sampleing frequency (Hz)
+     * @param fp : pass-band edge frequency (Hz)
+     * @param df : transition band width (Hz)
+     * @param aa : stop band attenuation (dB)
+     */
+    template<typename REAL>
+    static std::vector<REAL> makeLPF(double fs, double fp, double df, double aa, double gain = 1) {
+      double alp = alpha(aa), iza = izero(alp);
+      int64_t len = length(aa, fs, df);
+      std::vector<REAL> filter(len);
+      for(int i=0;i<len;i++) filter[i] = window(i - len/2, len, alp, iza) * hn_lpf(i - len/2, fp, fs) * gain;
+      return filter;
+    }
+
+    /**
+     * @param fs  : sampleing frequency (Hz)
+     * @param fp  : pass-band edge frequency (Hz)
+     * @param len : filter length
+     * @param aa  : stop band attenuation (dB)
+     */
+    template<typename REAL>
+    static std::vector<REAL> makeLPF(double fs, double fp, int64_t len, double aa, double gain = 1) {
+      double alp = alpha(aa), iza = izero(alp);
+      if ((len & 1) == 0) len++;
+      std::vector<REAL> filter(len);
+      for(int i=0;i<len;i++) filter[i] = window(i - len/2, len, alp, iza) * hn_lpf(i - len/2, fp, fs) * gain;
+      return filter;
+    }
+  };
+}
+#endif // #ifndef KAISER_HPP
