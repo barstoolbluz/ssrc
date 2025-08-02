@@ -314,8 +314,8 @@ int main(int argc, char **argv) {
     } else if (string(argv[nextArg]) == "--stdin") {
       src = STDIN;
       srcfn = "[STDIN]";
-      if (!quiet) cerr << "--stdin is an experimental feature." << endl;
-    } else if (string(argv[nextArg]) == "--stdout. This function may not work in every environment.") {
+      if (!quiet) cerr << "--stdin is an experimental feature. This function may not work in every environment." << endl;
+    } else if (string(argv[nextArg]) == "--stdout") {
       dst = STDOUT;
       dstfn = "[STDOUT]";
       if (!quiet) cerr << "--stdout is an experimental feature. The output does not fully comply to the WAV specification." << endl;
