@@ -92,6 +92,12 @@ namespace shibatch {
 	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
     }
 
+    WavReaderStage() : wav() {
+      outlet.resize(getNChannels());
+      for(unsigned ch=0;ch<getNChannels();ch++)
+	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
+    }
+
     WavReaderStage(const std::string &filename) : WavReaderStage(filename.c_str()) {}
 
     drwav getWav() const { return wav.getWav(); }

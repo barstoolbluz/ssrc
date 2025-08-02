@@ -56,6 +56,14 @@ namespace ssrc {
     virtual size_t read(T *ptr, size_t n) = 0;
   };
 
+  template<typename T>
+  class OutletProvider {
+  public:
+    virtual ~OutletProvider() = default;
+    virtual std::shared_ptr<StageOutlet<T>> getOutlet(uint32_t channel) = 0;
+    virtual WavFormat getFormat() = 0;
+  };
+
   class DoubleRNG {
   public:
     virtual double nextDouble() = 0;
@@ -79,11 +87,12 @@ namespace ssrc {
   };
 
   template<typename T>
-  class WavReader {
+  class WavReader : public OutletProvider<T> {
   public:
     class WavReaderImpl;
     WavReader(const char *filename);
     WavReader(const std::string &filename) : WavReader(filename.c_str()) {}
+    WavReader();
     ~WavReader();
     std::shared_ptr<StageOutlet<T>> getOutlet(uint32_t channel);
     WavFormat getFormat();
@@ -100,6 +109,8 @@ namespace ssrc {
     WavWriter(const std::string &filename, const WavFormat& fmt,
 	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_) :
       WavWriter(filename.c_str(), fmt, in_) {}
+    WavWriter(const WavFormat& fmt, uint64_t nFrames,
+	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_);
     ~WavWriter();
     void execute();
   private:

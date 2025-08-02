@@ -4,9 +4,15 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav.h"
@@ -162,6 +168,25 @@ namespace dr_wav {
 
     drwav wav;
 
+    static size_t on_stdin_read(void* pUserData, void* pBuffer, size_t bytesToRead) {
+      return fread(pBuffer, 1, bytesToRead, stdin);
+    }
+
+    static drwav_bool32 on_stdin_seek(void* pUserData, int offset, drwav_seek_origin origin) {
+      int whence = SEEK_SET;
+      if (origin == DRWAV_SEEK_CUR) {
+        whence = SEEK_CUR;
+      } else if (origin == DRWAV_SEEK_END) {
+        whence = SEEK_END;
+      }
+
+      return fseek(stdin, offset, whence) == 0;
+    }
+
+    static size_t on_stdout_write(void* pUserData, const void* pData, size_t bytesToWrite) {
+      return fwrite(pData, 1, bytesToWrite, stdout);
+    }
+
   public:
     WavFile(const std::string &filename) {
       memset(&wav, 0, sizeof(wav));
@@ -173,6 +198,24 @@ namespace dr_wav {
       memset(&wav, 0, sizeof(wav));
       if (!drwav_init_file_write(&wav, filename.c_str(), &format.format, NULL))
 	throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
+    }
+
+    WavFile() {
+      memset(&wav, 0, sizeof(wav));
+#ifdef _WIN32
+      _setmode(_fileno(stdin), _O_BINARY);
+#endif
+      if (!drwav_init(&wav, on_stdin_read, on_stdin_seek, NULL, NULL, NULL))
+	throw(std::runtime_error("WavFile::WavFile Could not open STDIN for reading"));
+    }
+
+    WavFile(const DataFormat &format, uint64_t totalPCMFrameCount) {
+#ifdef _WIN32
+      _setmode(_fileno(stdout), _O_BINARY);
+#endif
+      memset(&wav, 0, sizeof(wav));
+      if (!drwav_init_write_sequential_pcm_frames(&wav, &format.format, totalPCMFrameCount, on_stdout_write, NULL, NULL))
+	throw(std::runtime_error("WavFile::WavFile Could not open STDOUT for writing"));
     }
 
     WavFile(const WavFile &&w) {

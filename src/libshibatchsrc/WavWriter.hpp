@@ -28,6 +28,12 @@ namespace shibatch {
       if (fmt.channels != in.size()) std::runtime_error("WavWriterStage::WavWriterStage fmt.channels != in.size()");
     }
 
+    WavWriterStage(const drwav_fmt& fmt, uint64_t nFrames,
+	      const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> &in_, size_t bufsize = 65536) :
+      N(bufsize), wav(fmt, nFrames), in(in_) {
+      if (fmt.channels != in.size()) std::runtime_error("WavWriterStage::WavWriterStage fmt.channels != in.size()");
+    }
+
     void execute() {
       const unsigned nch = wav.getNChannels();
       std::vector<T> cbuf(N), fbuf(N * nch);
