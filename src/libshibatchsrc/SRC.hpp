@@ -131,7 +131,7 @@ namespace shibatch {
 
   public:
     SSRCStage(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
-			  unsigned l2dftflen_ = 12, double aa_ = 80, double guard_ = 1) :
+	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1) :
       inlet(inlet_), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
       lfs(std::min(sfs_, dfs_)), hfs(std::max(sfs_, dfs_)),
       dftflen(1LL << l2dftflen_), aa(aa_), guard(guard_) {
@@ -160,11 +160,12 @@ namespace shibatch {
 	ppfv = KaiserWindow::makeLPF<REAL>(fslcm, (fsos + (lfs - fsos)/(1.0 + guard)) / 2, (fsos - lfs) / (1.0 + guard), aa, fslcm / (double)sfs);
 
 	// sampling frequency (fsos)      : hfs * osm (Hz)
-	// pass-band edge frequency (fp2) : lfs / 2 (Hz)
+	// pass-band edge frequency (fp2) : (lfs / 2 - df) (Hz)
 	// length                         : dftflen - 1 (dftflen must be 2^N)
 	// gain                           : 1.0 / dftflen
 
-	dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2, dftflen - 1, aa, 1.0 / dftflen);
+	double df = KaiserWindow::transitionBandWidth(aa, hfs * osm, dftflen - 1);
+	dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2 - df, dftflen - 1, aa, 1.0 / dftflen);
       }
 
       if (dfs > sfs) {

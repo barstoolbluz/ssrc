@@ -154,6 +154,6 @@ template bool Dither<int32_t, double>::atEnd();
 
 //
 
-std::shared_ptr<DoubleRNG> ssrc::createTriangleRNG(double peak, uint64_t seed) {
+std::shared_ptr<DoubleRNG> ssrc::createTriangularRNG(double peak, uint64_t seed) {
   return make_shared<TriangularDoubleRNG>(peak, make_shared<shibatch::LCG64>(seed));
 }

@@ -117,7 +117,7 @@ namespace ssrc {
     std::shared_ptr<class WavWriterImpl> impl;
   };
 
-  std::shared_ptr<DoubleRNG> createTriangleRNG(double peak = 1.0,
+  std::shared_ptr<DoubleRNG> createTriangularRNG(double peak = 1.0,
     uint64_t seed = std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
   template<typename OUTTYPE, typename INTYPE>
@@ -125,7 +125,7 @@ namespace ssrc {
   public:
     class DitherImpl;
     Dither(std::shared_ptr<StageOutlet<INTYPE>> in_, double gain_, int32_t offset_, int32_t clipMin_, int32_t clipMax_,
-	   const ssrc::NoiseShaperCoef *coef_, std::shared_ptr<DoubleRNG> rng_ = createTriangleRNG());
+	   const ssrc::NoiseShaperCoef *coef_, std::shared_ptr<DoubleRNG> rng_ = createTriangularRNG());
     ~Dither();
     bool atEnd();
     size_t read(OUTTYPE *ptr, size_t n);

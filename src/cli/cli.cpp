@@ -286,6 +286,7 @@ int main(int argc, char **argv) {
 	showUsage(argv[0], "Two positive values are expected after --genImpulse.");
       nextArg++;
       src = IMPULSE;
+      srcfn = "[IMPULSE]";
     } else if (string(argv[nextArg]) == "--genSweep") {
       const string mes = "Four positive values are expected after --genSweep.";
       char *p;
@@ -311,6 +312,7 @@ int main(int argc, char **argv) {
       nextArg++;
 
       src = SWEEP;
+      srcfn = "[SWEEP]";
     } else if (string(argv[nextArg]) == "--stdin") {
       src = STDIN;
       srcfn = "[STDIN]";
@@ -447,6 +449,7 @@ int main(int argc, char **argv) {
       cerr << "impulsePeriod = " << impulsePeriod << endl;
       cerr << "sweepLength = "  << sweepLength << endl;
       cerr << "sweepStart = "   << sweepStart << endl;
+      cerr << "sweepEnd = "     << sweepStart << endl;
     }
 
     //
@@ -454,6 +457,11 @@ int main(int argc, char **argv) {
     const WavFormat dstFormat = bits == 0 ?
       WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, 32  ) :
       WavFormat(WavFormat::PCM       , srcFormat.channels, dfs, bits);
+
+    const double gain = (1LL << (bits - 1)) - 1;
+    const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
+    const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
+    const int32_t offset  = bits != 8 ? 0 : 0x80;
 
     if (!profile.doublePrecision) {
       if (shaperid == -1 || bits == 0) {
@@ -469,17 +477,12 @@ int main(int argc, char **argv) {
 	  make_shared<WavWriter<float>>(dstFormat, 0, out);
 	writer->execute();
       } else {
-	const double gain = (1LL << (bits - 1)) - 1;
-	const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
-	const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
-	const int32_t offset  = bits != 8 ? 0 : 0x80;
-
 	vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
 
 	for(int i=0;i<nch;i++) {
 	  std::shared_ptr<DoubleRNG> rng;
 	  if (pdf == 0) {
-	    rng = createTriangleRNG(peak, seed + i);
+	    rng = createTriangularRNG(peak, seed + i);
 	  } else {
 	    rng = make_shared<RectangularRNG>(-peak, peak, seed + i);
 	  }
@@ -514,17 +517,12 @@ int main(int argc, char **argv) {
 
 	writer->execute();
       } else {
-	const double gain = (1LL << (bits - 1)) - 1;
-	const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
-	const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
-	const int32_t offset  = bits != 8 ? 0 : 0x80;
-
 	vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
 
 	for(int i=0;i<nch;i++) {
 	  std::shared_ptr<DoubleRNG> rng;
 	  if (pdf == 0) {
-	    rng = createTriangleRNG(peak, seed + i);
+	    rng = createTriangularRNG(peak, seed + i);
 	  } else {
 	    rng = make_shared<RectangularRNG>(-peak, peak, seed + i);
 	  }

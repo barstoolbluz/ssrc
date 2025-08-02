@@ -1,0 +1,13 @@
+This application uses the following third-party software.
+
+dr_wav
+
+* License: MIT No Attribution License
+* Source: https://github.com/mackron/dr_libs
+* Copyright: Copyright (c) 2016, David Reid
+
+Binary distributions may contain OpenMP Runtime (libomp.dll)
+
+* License: Apache License 2.0 with LLVM Exceptions
+* Source: https://openmp.llvm.org/
+* Copyright: Copyright (c) The LLVM Project

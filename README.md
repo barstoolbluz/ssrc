@@ -44,15 +44,15 @@ ssrc [options] input.wav output.wav
 | `--att <attenuation>`      | Attenuate the output in decibels (dB).                                                         |
 | `--bits <number of bits>`  | Specify the output quantization bit length. Use `0` for IEEE 32-bit floating-point WAV files.   |
 | `--dither <type>`          | Select dithering type:                                                                         |
-|                            | - `0`: Low intensity ATH-based noise shaping                                                  |
-|                            | - `98`: Triangular noise shaping                                                              |
-|                            | - `help`: Show all available options for dithering                                            |
+|                            | `0`: Low intensity ATH-based noise shaping                                                  |
+|                            | `98`: Triangular noise shaping                                                              |
+|                            | `help`: Show all available options for dithering                                            |
 | `--pdf <type> [<amp>]`     | Select Probability Distribution Function (PDF) for dithering:                                 |
-|                            | - `0`: Rectangular                                                                            |
-|                            | - `1`: Triangular                                                                             |
+|                            | `0`: Rectangular                                                                            |
+|                            | `1`: Triangular                                                                             |
 | `--profile <type>`         | Specify a conversion profile:                                                                 |
-|                            | - `fast`: Shorter filter length, quick conversion                                             |
-|                            | - `help`: Show all available profile options                                                  |
+|                            | `fast`: Shorter filter length, quick conversion                                             |
+|                            | `help`: Show all available profile options                                                  |
 
 #### Example
 

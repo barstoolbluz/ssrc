@@ -43,6 +43,11 @@ namespace shibatch {
       return len;
     }
 
+    static double transitionBandWidth(double aa, double fs, int length) {
+      double d = aa <= 21 ? 0.9222 : (aa-7.95)/14.36;
+      return (fs * d) / (length - 1);
+    }
+
     static double window(int n, int len, double alp, double iza) {
       if (n > len - 1) return 0;
       return izero(alp * sqrt(1 - 4.0*n*n/((len-1.0)*(len-1.0)))) / iza;
