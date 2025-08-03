@@ -6,14 +6,14 @@ option(ENABLE_ASAN "Enable ASAN" OFF)
 # CC=gcc-12 CXX=g++-12 CFLAGS="-march=native" CXXFLAGS="-march=native" cmake ..
 
 # To use clang-19 to Build with LTO enabled
-# CXX=clang++-19 CC=clang-19 cmake .. -DENABLE_INLINING=True -DENABLE_LTO=True -DCMAKE_CXX_COMPILER_AR=/usr/bin/llvm-ar-19 -DCMAKE_CXX_COMPILER_RANLIB=/usr/bin/llvm-ranlib-19
+# CXX=clang++-19 CC=clang-19 cmake .. -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=True -DCMAKE_CXX_COMPILER_AR=/usr/bin/llvm-ar-19 -DCMAKE_CXX_COMPILER_RANLIB=/usr/bin/llvm-ranlib-19
 
 # To build shared library
 # cmake .. -DBUILD_SHARED_LIBS=True -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 
 ##
 
-set(SSRC_VERSION 2.0.2)
+set(SSRC_VERSION 2.0.3)
 
 message(STATUS "Configuring Shibatch Sampling Rate Converter ${SSRC_VERSION}")
 

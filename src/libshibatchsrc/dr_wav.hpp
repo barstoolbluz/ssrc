@@ -37,11 +37,7 @@ namespace dr_wav {
 
     Format(const drwav_fmt &fmt_) : fmt(fmt_) {}
 
-    drwav_fmt getFmt() const {
-      drwav_fmt ret;
-      memcpy(&ret, &fmt, sizeof(ret));
-      return ret;
-    }
+    drwav_fmt getFmt() const { return fmt; }
 
     friend std::string to_string(const Format &fmt) {
       std::string s = "[Format: ";
@@ -235,17 +231,9 @@ namespace dr_wav {
       throw(std::runtime_error(s.c_str()));
     }
 
-    drwav getWav() const {
-      drwav ret;
-      memcpy(&ret, &wav, sizeof(ret));
-      return ret;
-    }
+    drwav getWav() const { return wav; }
 
-    drwav_fmt getFmt() const {
-      drwav_fmt ret;
-      memcpy(&ret, &wav.fmt, std::min(sizeof(ret), sizeof(wav.fmt)));
-      return ret;
-    }
+    drwav_fmt getFmt() const { return wav.fmt; }
 
     uint32_t getSampleRate() const { return wav.fmt.sampleRate; }
     uint16_t getNBitsPerSample() const { return wav.fmt.bitsPerSample; }
@@ -308,8 +296,8 @@ namespace dr_wav {
     }
 
     size_t writePCM(double *ptr, size_t nFrame) {
-      std::vector<float> buf(nFrame);
-      for(size_t i=0;i<nFrame;i++) buf[i] = ptr[i];
+      std::vector<float> buf(nFrame * getNChannels());
+      for(size_t i=0;i<nFrame * getNChannels();i++) buf[i] = ptr[i];
       return writePCM(buf.data(), nFrame);
     }
 

@@ -16,7 +16,7 @@
 #endif
 
 #include "shibatch/ssrc.hpp"
-#include "shapercoefs.h"
+#include "shibatch/shapercoefs.h"
 
 #ifndef SSRC_VERSION
 #error SSRC_VERSION not defined
@@ -90,7 +90,7 @@ void showUsage(const string& argv0, const string& mes = "") {
   //cerr << "                                       2 : Gaussian" << endl;
   //cerr << "                                       3 : Two-level (experimental)" << endl;
   cerr << "          --profile <type>           Specify profile" << endl;
-  cerr << "                                       fast : shorter filter length, quick conversion" << endl;
+  cerr << "                                       fast : Enough quality for almost every purpose" << endl;
   cerr << "                                       help : Show all available options" << endl;
   cerr << "          --genImpulse <fs> <period> Generate impulse as input" << endl;
   cerr << "          --genSweep <fs> <length> <startfs> <endfs>" << endl;
@@ -316,11 +316,9 @@ int main(int argc, char **argv) {
     } else if (string(argv[nextArg]) == "--stdin") {
       src = STDIN;
       srcfn = "[STDIN]";
-      if (!quiet) cerr << "--stdin is an experimental feature. This function may not work in every environment." << endl;
     } else if (string(argv[nextArg]) == "--stdout") {
       dst = STDOUT;
       dstfn = "[STDOUT]";
-      if (!quiet) cerr << "--stdout is an experimental feature. The output does not fully comply to the WAV specification." << endl;
     } else if (string(argv[nextArg]) == "--quiet") {
       quiet = true;
     } else if (string(argv[nextArg]) == "--debug") {
@@ -351,6 +349,8 @@ int main(int argc, char **argv) {
     } else {
       showUsage(argv[0], "Specify a source file name.");
     }
+  } else if (!quiet && src == STDIN) {
+    cerr << "Warning : --stdin is an experimental feature. This function may not work in every environment." << endl;
   }
 
   if (dst == FILEOUT) {
@@ -359,6 +359,8 @@ int main(int argc, char **argv) {
     } else {
       showUsage(argv[0], "Specify a destination file name.");
     }
+  } else if (!quiet && dst == STDOUT) {
+    cerr << "Warning : --stdout is an experimental feature. The output does not fully comply to the WAV specification." << endl;
   }
 
   if (nextArg != argc) showUsage(argv[0], "Extra arguments after the destination file name.");

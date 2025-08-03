@@ -1,6 +1,8 @@
 // Noise shaper coefficients for SSRC, written by Naoki Shibata ( shibatch@users.sourceforge.net )
 
+#ifdef __cplusplus
 namespace ssrc {
+#endif
   const NoiseShaperCoef noiseShaperCoef[] = {
     {
       44100, 0, "ATH Curve A, Intensity 0",
@@ -1417,4 +1419,6 @@ namespace ssrc {
       },
     },
   };
-}
+#ifdef __cplusplus
+} // namespace ssrc {
+#endif
