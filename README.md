@@ -38,21 +38,21 @@ ssrc [options] input.wav output.wav
 
 #### Options
 
-| Option                     | Description                                                                                     |
-|----------------------------|-------------------------------------------------------------------------------------------------|
+| Option                     | Description                                                                                    |
+|----------------------------|------------------------------------------------------------------------------------------------|
 | `--rate <sampling rate>`   | Specify the output sampling rate in Hz.                                                        |
 | `--att <attenuation>`      | Attenuate the output in decibels (dB).                                                         |
-| `--bits <number of bits>`  | Specify the output quantization bit length. Use `0` for IEEE 32-bit floating-point WAV files.   |
+| `--bits <number of bits>`  | Specify the output quantization bit length. Use `0` for IEEE 32-bit floating-point WAV files.  |
 | `--dither <type>`          | Select dithering type:                                                                         |
-|                            | `0`: Low intensity ATH-based noise shaping                                                  |
-|                            | `98`: Triangular noise shaping                                                              |
-|                            | `help`: Show all available options for dithering                                            |
-| `--pdf <type> [<amp>]`     | Select Probability Distribution Function (PDF) for dithering:                                 |
-|                            | `0`: Rectangular                                                                            |
-|                            | `1`: Triangular                                                                             |
-| `--profile <type>`         | Specify a conversion profile:                                                                 |
-|                            | `fast`: Shorter filter length, quick conversion                                             |
-|                            | `help`: Show all available profile options                                                  |
+|                            | `0`: Low intensity ATH-based noise shaping                                                     |
+|                            | `98`: Triangular noise shaping                                                                 |
+|                            | `help`: Show all available options for dithering                                               |
+| `--pdf <type> [<amp>]`     | Select Probability Distribution Function (PDF) for dithering:                                  |
+|                            | `0`: Rectangular                                                                               |
+|                            | `1`: Triangular                                                                                |
+| `--profile <type>`         | Specify a conversion profile:                                                                  |
+|                            | `fast`: This setting is actually enough for almost every purpose                               |
+|                            | `help`: Show all available profile options                                                     |
 
 #### Example
 
@@ -80,6 +80,29 @@ ssrc --rate 48000 --dither 0 input.wav output.wav
 4. Run make to build and install the project:
     ```bash
     make && make install
+    ```
+
+### Building on Windows
+
+1. Download and install Visual Studio Community 20XX.
+  * Choose "Desktop development with C++" option in Workloads pane.
+  * Choose "C++ CMake tools for Windows" in Individual components
+    pane.
+  * Choose "C++ Clang Compiler for Windows" in Individual components
+    pane.
+
+2. Create a build directory, launch Developer Command Prompt for VS
+  20XX and move to the build directory.
+
+3. Clone the repository:
+    ```bat
+    git clone https://github.com/shibatch/ssrc
+    cd ssrc
+    ```
+
+4. Run the batch file for building with Clang on Windows.
+    ```bat
+    winbuild-clang.bat -DCMAKE_BUILD_TYPE=Release
     ```
 
 ## Credits

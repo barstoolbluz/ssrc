@@ -464,6 +464,7 @@ int main(int argc, char **argv) {
     const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
     const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
     const int32_t offset  = bits != 8 ? 0 : 0x80;
+    const uint64_t nFramesForStdout = 0x1f000000; // This is a hack.
 
     if (!profile.doublePrecision) {
       if (shaperid == -1 || bits == 0) {
@@ -476,7 +477,7 @@ int main(int argc, char **argv) {
 	}
 
 	auto writer = dst == FILEOUT ? make_shared<WavWriter<float>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<float>>(dstFormat, 0, out);
+	  make_shared<WavWriter<float>>(dstFormat, nFramesForStdout, out);
 	writer->execute();
       } else {
 	vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
@@ -497,7 +498,7 @@ int main(int argc, char **argv) {
 	}
 
 	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<int32_t>>(dstFormat, 0, out);
+	  make_shared<WavWriter<int32_t>>(dstFormat, nFramesForStdout, out);
 
 	writer->execute();
       }
@@ -515,7 +516,7 @@ int main(int argc, char **argv) {
 	}
 
 	auto writer = dst == FILEOUT ? make_shared<WavWriter<double>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<double>>(dstFormat, 0, out);
+	  make_shared<WavWriter<double>>(dstFormat, nFramesForStdout, out);
 
 	writer->execute();
       } else {
@@ -538,7 +539,7 @@ int main(int argc, char **argv) {
 	}
 
 	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<int32_t>>(dstFormat, 0, out);
+	  make_shared<WavWriter<int32_t>>(dstFormat, nFramesForStdout, out);
 
 	writer->execute();
       }

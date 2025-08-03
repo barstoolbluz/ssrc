@@ -66,9 +66,10 @@ namespace shibatch {
     dr_wav::WavFile wav;
     std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> outlet;
     std::mutex mtx;
+    std::vector<T> buf;
 
     size_t refill(size_t n) {
-      std::vector<T> buf(n * getNChannels());
+      buf.resize(std::max(n * getNChannels(), buf.size()));
       size_t z = wav.readPCM(buf.data(), n);
       unsigned nc = getNChannels();
 

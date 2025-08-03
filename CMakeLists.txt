@@ -13,7 +13,7 @@ option(ENABLE_ASAN "Enable ASAN" OFF)
 
 ##
 
-set(SSRC_VERSION 2.0.3)
+set(SSRC_VERSION 2.0.4)
 
 message(STATUS "Configuring Shibatch Sampling Rate Converter ${SSRC_VERSION}")
 

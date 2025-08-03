@@ -89,7 +89,8 @@ namespace shibatch {
       double alp = alpha(aa), iza = izero(alp);
       if ((len & 1) == 0) len++;
       std::vector<REAL> filter(len);
-      for(int i=0;i<len;i++) filter[i] = window(i - len/2, len, alp, iza) * hn_lpf(i - len/2, fp, fs) * gain;
+      for(int i=0;i<=len/2;i++)
+	filter[len/2 + i] = filter[len/2 - i] = window(i, len, alp, iza) * hn_lpf(i, fp, fs) * gain;
       return filter;
     }
   };

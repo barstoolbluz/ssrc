@@ -61,6 +61,7 @@ template<typename T> WavFormat WavReader<T>::getFormat() {
   ret.extendedSize = fmt.extendedSize;
   ret.validBitsPerSample = fmt.validBitsPerSample;
   ret.channelMask = fmt.channelMask;
+  memcpy(&ret.subFormat, &fmt.subFormat, sizeof(ret.subFormat));
 
   return ret;
 }
