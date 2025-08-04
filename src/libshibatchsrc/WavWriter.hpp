@@ -22,16 +22,16 @@ namespace shibatch {
     const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> &in;
 
   public:
-    WavWriterStage(const char *filename, const drwav_fmt& fmt,
+    WavWriterStage(const char *filename, const dr_wav::DataFormat& fmt,
 	      const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> &in_, size_t bufsize = 65536) :
       N(bufsize), wav(filename, fmt), in(in_) {
-      if (fmt.channels != in.size()) std::runtime_error("WavWriterStage::WavWriterStage fmt.channels != in.size()");
+      if (fmt.getContent().channels != in.size()) std::runtime_error("WavWriterStage::WavWriterStage fmt.channels != in.size()");
     }
 
-    WavWriterStage(const drwav_fmt& fmt, uint64_t nFrames,
+    WavWriterStage(const dr_wav::DataFormat& fmt, uint64_t nFrames,
 	      const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> &in_, size_t bufsize = 65536) :
       N(bufsize), wav(fmt, nFrames), in(in_) {
-      if (fmt.channels != in.size()) std::runtime_error("WavWriterStage::WavWriterStage fmt.channels != in.size()");
+      if (fmt.getContent().channels != in.size()) std::runtime_error("WavWriterStage::WavWriterStage fmt.channels != in.size()");
     }
 
     void execute() {
@@ -51,7 +51,7 @@ namespace shibatch {
       }
     }
 
-    WavWriterStage(const std::string &filename, const drwav_fmt& fmt,
+    WavWriterStage(const std::string &filename, const dr_wav::DataFormat& fmt,
 		   const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> &in_, size_t bufsize = 65536) :
       WavWriterStage(filename, fmt, in_, bufsize) {}
   };

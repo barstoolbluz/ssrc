@@ -43,16 +43,19 @@ ssrc [options] input.wav output.wav
 | `--rate <sampling rate>`   | Specify the output sampling rate in Hz.                                                        |
 | `--att <attenuation>`      | Attenuate the output in decibels (dB).                                                         |
 | `--bits <number of bits>`  | Specify the output quantization bit length. Use `0` for IEEE 32-bit floating-point WAV files.  |
-| `--dither <type>`          | Select dithering type:                                                                         |
+| `--dither <type>`          | Select a dithering type:                                                                       |
 |                            | `0`: Low intensity ATH-based noise shaping                                                     |
 |                            | `98`: Triangular noise shaping                                                                 |
 |                            | `help`: Show all available options for dithering                                               |
-| `--pdf <type> [<amp>]`     | Select Probability Distribution Function (PDF) for dithering:                                  |
+| `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering:                                |
 |                            | `0`: Rectangular                                                                               |
 |                            | `1`: Triangular                                                                                |
 | `--profile <type>`         | Specify a conversion profile:                                                                  |
 |                            | `fast`: This setting is actually enough for almost every purpose                               |
 |                            | `help`: Show all available profile options                                                     |
+| `--dstContainer <type>`    | Specify a container type:                                                                      |
+|                            | `riff`: This is the most common container type                                                 |
+|                            | `help`: Show all available container options                                                   |
 
 #### Example
 

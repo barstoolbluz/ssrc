@@ -7,6 +7,7 @@
 #include <memory>
 #include <chrono>
 #include <random>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <cmath>
@@ -40,7 +41,20 @@ const unordered_map<string, ConversionProfile> availableProfiles = {
   { "default",   { 14, 120, 1.0, false} },
   { "short",     { 12,  96, 1.0, false} },
   { "fast",      { 10,  96, 1.0, false} },
-  { "lightning", {  8,  80, 0.5, false} },
+  { "lightning", {  8,  96, 1.0, false} },
+};
+
+const unordered_map<string, ContainerFormat> availableContainers = {
+  { "riff", ContainerFormat::RIFF },
+  { "RIFF", ContainerFormat::RIFF },
+  { "rifx", ContainerFormat::RIFX },
+  { "RIFX", ContainerFormat::RIFX },
+  { "w64" , ContainerFormat::W64  },
+  { "W64" , ContainerFormat::W64  },
+  { "rf64", ContainerFormat::RF64 },
+  { "RF64", ContainerFormat::RF64 },
+  { "aiff", ContainerFormat::AIFF },
+  { "AIFF", ContainerFormat::AIFF },
 };
 
 void showProfileOptions() {
@@ -49,7 +63,7 @@ void showProfileOptions() {
     cerr << "Profile name : " << p.first << endl;
     cerr << "  FFT length : " << (1LL << p.second.log2dftfilterlen) << endl;
     cerr << "  Stop band attenuation : " << p.second.aa << " dB" << endl;
-    cerr << "  Guard value : " << p.second.guard << endl;
+    cerr << "  Guard factor : " << p.second.guard << endl;
     cerr << "  Floating point precision : " << (p.second.doublePrecision ? "double" : "single") << endl;
     cerr << endl;
   }
@@ -71,30 +85,38 @@ void showDitherOptions() {
   exit(-1);
 }
 
+void showContainerOptions() {
+  cerr << "Available containers : riff, rifx, w64, rf64, aiff" << endl;
+  exit(-1);
+}
+
 void showUsage(const string& argv0, const string& mes = "") {
-  cerr << ("Shibatch sampling rate converter  Version " SSRC_VERSION) << endl;
+  cerr << ("Shibatch Sampling Rate Converter  Version " SSRC_VERSION) << endl;
   cerr << endl;
-  cerr << "usage: " << argv0 << " [<options>] <source file name> <destination file name>" << endl;
+  cerr << "Usage: " << argv0 << " [<options>] <source file name> <destination file name>" << endl;
   cerr << endl;
-  cerr << "options : --rate <sampling rate(Hz)> Output sample rate" << endl;
-  cerr << "          --att <attenuation(dB)>    Attenuate output" << endl;
-  cerr << "          --bits <number of bits>    Output quantization bit length" << endl;
+  cerr << "Options : --rate <sampling rate(Hz)> Specify a sample rate" << endl;
+  cerr << "          --att <attenuation(dB)>    Specify an attenuation level of the output signal" << endl;
+  cerr << "          --bits <number of bits>    Specify an output quantization bit length" << endl;
   cerr << "                                     Specify 0 to convert to an IEEE 32-bit FP wav file" << endl;
-  cerr << "          --dither <type>            Dither options" << endl;
+  cerr << "          --dither <type>            Select a type of noise shaper" << endl;
   cerr << "                                       0    : Low intensity ATH-based noise shaping" << endl;
   cerr << "                                       98   : Triangular noise shaping" << endl;
   cerr << "                                       help : Show all available options" << endl;
-  cerr << "          --pdf <type> [<amp>]       Select probability distribution function for dithering" << endl;
+  cerr << "          --pdf <type> [<amp>]       Select a probability distribution function for dithering" << endl;
   cerr << "                                       0 : Rectangular" << endl;
   cerr << "                                       1 : Triangular" << endl;
   //cerr << "                                       2 : Gaussian" << endl;
   //cerr << "                                       3 : Two-level (experimental)" << endl;
-  cerr << "          --profile <type>           Specify profile" << endl;
+  cerr << "          --profile <name>           Select a conversion profile" << endl;
   cerr << "                                       fast : Enough quality for almost every purpose" << endl;
   cerr << "                                       help : Show all available options" << endl;
-  cerr << "          --genImpulse <fs> <period> Generate impulse as input" << endl;
+  cerr << "          --dstContainer <name>      Select a container of output file" << endl;
+  cerr << "                                       riff : The most common WAV format" << endl;
+  cerr << "                                       help : Show all available options" << endl;
+  cerr << "          --genImpulse <fs> <period> Generate an impulse signal as input" << endl;
   cerr << "          --genSweep <fs> <length> <startfs> <endfs>" << endl;
-  cerr << "                                     Generate sweep signal as input" << endl;
+  cerr << "                                     Generate a sweep signal as input" << endl;
   cerr << endl;
   cerr << "If you like this tool, visit https://github.com/shibatch/ssrc and give it a star." << endl;
   cerr << endl;
@@ -213,7 +235,7 @@ public:
 int main(int argc, char **argv) {
   if (argc < 2) showUsage(argv[0], "");
 
-  string srcfn, dstfn, profileName = "default";
+  string srcfn, dstfn, profileName = "default", dstContainerName = "";
   int64_t rate = -1, bits = 16, dither = -1, pdf = 0;
   uint64_t seed = ~0ULL;
   double att = 0, peak = 1.0;
@@ -319,6 +341,12 @@ int main(int argc, char **argv) {
     } else if (string(argv[nextArg]) == "--stdout") {
       dst = STDOUT;
       dstfn = "[STDOUT]";
+    } else if (string(argv[nextArg]) == "--dstContainer") {
+      if (nextArg == 1 && argc == 2) showContainerOptions();
+      if (nextArg+1 >= argc) showUsage(argv[0], "Specify a format/container name after --dstContainer");
+      if (argv[nextArg+1] == string("help")) showContainerOptions();
+      dstContainerName = argv[nextArg+1];
+      nextArg++;
     } else if (string(argv[nextArg]) == "--quiet") {
       quiet = true;
     } else if (string(argv[nextArg]) == "--debug") {
@@ -368,17 +396,27 @@ int main(int argc, char **argv) {
   if (pdf > 1)
     showUsage(argv[0], "PDF ID " + to_string(pdf) + " is not supported");
 
-  if (availableProfiles.count(profileName) == 0)
-    showUsage(argv[0], "There is no profile of name \"" + profileName + "\"");
-
   if (bits != 0 && bits != 8 && bits != 16 && bits != 24 && bits != 32)
     showUsage(argv[0], to_string(bits) + "-bit quantization is not supported");
+
+  ConversionProfile profile;
+
+  if (availableProfiles.count(profileName) == 0) {
+    char c = '\0';
+    if (sscanf(profileName.c_str(), "%u,%lf,%lf,%c",
+	       &profile.log2dftfilterlen, &profile.aa, &profile.guard, &c) == 4 && (c == 'd' || c == 'f')) {
+      profile.doublePrecision = (c == 'd');
+    } else {
+      showUsage(argv[0], "There is no profile of name \"" + profileName + "\"");
+    }
+  } else {
+    profile = availableProfiles.at(profileName);
+  }
 
   //
 
   try {
     if (seed == ~0ULL) seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-    const ConversionProfile &profile = availableProfiles.at(profileName);
 
     shared_ptr<OutletProvider<float>> reader;
 
@@ -400,9 +438,18 @@ int main(int argc, char **argv) {
     }
 
     const WavFormat srcFormat = reader->getFormat();
+    const ContainerFormat srcContainer = reader->getContainer();
     const int sfs = srcFormat.sampleRate;
     const int dfs = rate < 0 ? srcFormat.sampleRate : rate;
     const int nch = srcFormat.channels;
+
+    if (dstContainerName == "" && srcContainer.c == 0) dstContainerName = "RIFF";
+    if (dstContainerName == "" && srcContainer.c != 0) dstContainerName = to_string(srcContainer);
+
+    if (availableContainers.count(dstContainerName) == 0)
+      showUsage(argv[0], "There is no container of name \"" + dstContainerName + "\"");
+
+    const ContainerFormat dstContainer = availableContainers.at(dstContainerName);
 
     int shaperid = -1;
 
@@ -418,14 +465,28 @@ int main(int argc, char **argv) {
     if (dither != -1 && shaperid == -1)
       showUsage(argv[0], "Dither type " + to_string(dither) + " is not available for destination sampling frequency " + to_string(dfs) + "Hz");
 
+    const WavFormat dstFormat = bits == 0 ?
+      WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, 32  ) :
+      WavFormat(WavFormat::PCM       , srcFormat.channels, dfs, bits);
+
+    const double gain = (1LL << (bits - 1)) - 1;
+    const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
+    const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
+    const int32_t offset  = bits != 8 ? 0 : 0x80;
+    const uint64_t nFramesForStdout = 0x1f000000; // This is a hack.
+
     //
 
     if (debug) {
       cerr << "srcfn = "        << srcfn << endl;
-      cerr << "dstfn = "        << dstfn << endl;
-      cerr << "nch = "          << nch << endl;
       cerr << "sfs = "          << sfs << endl;
+      cerr << "srcContainer = " << to_string(srcContainer) << endl;
+      cerr << "nch = "          << nch << endl;
+      cerr << endl;
+
+      cerr << "dstfn = "        << dstfn << endl;
       cerr << "dfs = "          << dfs << endl;
+      cerr << "dstContainer = " << to_string(dstContainer) << endl;
       cerr << "bits = "         << bits << endl;
       cerr << endl;
 
@@ -456,16 +517,6 @@ int main(int argc, char **argv) {
 
     //
 
-    const WavFormat dstFormat = bits == 0 ?
-      WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, 32  ) :
-      WavFormat(WavFormat::PCM       , srcFormat.channels, dfs, bits);
-
-    const double gain = (1LL << (bits - 1)) - 1;
-    const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
-    const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
-    const int32_t offset  = bits != 8 ? 0 : 0x80;
-    const uint64_t nFramesForStdout = 0x1f000000; // This is a hack.
-
     if (!profile.doublePrecision) {
       if (shaperid == -1 || bits == 0) {
 	vector<shared_ptr<ssrc::StageOutlet<float>>> out(nch);
@@ -476,8 +527,8 @@ int main(int argc, char **argv) {
 	  out[i] = ssrc;
 	}
 
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<float>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<float>>(dstFormat, nFramesForStdout, out);
+	auto writer = dst == FILEOUT ? make_shared<WavWriter<float>>(dstfn, dstFormat, dstContainer, out) :
+	  make_shared<WavWriter<float>>(dstFormat, dstContainer, nFramesForStdout, out);
 	writer->execute();
       } else {
 	vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
@@ -497,8 +548,8 @@ int main(int argc, char **argv) {
 	  out[i] = dither;
 	}
 
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<int32_t>>(dstFormat, nFramesForStdout, out);
+	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out) :
+	  make_shared<WavWriter<int32_t>>(dstFormat, dstContainer, nFramesForStdout, out);
 
 	writer->execute();
       }
@@ -515,8 +566,8 @@ int main(int argc, char **argv) {
 	  out[i] = ssrc;
 	}
 
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<double>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<double>>(dstFormat, nFramesForStdout, out);
+	auto writer = dst == FILEOUT ? make_shared<WavWriter<double>>(dstfn, dstFormat, dstContainer, out) :
+	  make_shared<WavWriter<double>>(dstFormat, dstContainer, nFramesForStdout, out);
 
 	writer->execute();
       } else {
@@ -538,8 +589,8 @@ int main(int argc, char **argv) {
 	  out[i] = dither;
 	}
 
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, out) :
-	  make_shared<WavWriter<int32_t>>(dstFormat, nFramesForStdout, out);
+	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out) :
+	  make_shared<WavWriter<int32_t>>(dstFormat, dstContainer, nFramesForStdout, out);
 
 	writer->execute();
       }

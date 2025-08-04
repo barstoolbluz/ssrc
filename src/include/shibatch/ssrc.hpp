@@ -11,7 +11,7 @@
 
 namespace ssrc {
   struct WavFormat {
-    static const uint16_t PCM = 0x0001, IEEE_FLOAT = 0x0003;
+    static const inline uint16_t PCM = 0x0001, IEEE_FLOAT = 0x0003;
 
     uint16_t formatTag, channels;
     uint32_t sampleRate, avgBytesPerSec;
@@ -35,6 +35,27 @@ namespace ssrc {
       if (subFormat_) memcpy(subFormat, subFormat_, sizeof(subFormat));
     }
   };
+
+  struct ContainerFormat {
+    static const inline uint16_t RIFF = 0x1000, RIFX = 0x1001, W64 = 0x1002;
+    static const inline uint16_t RF64 = 0x1003, AIFF = 0x1004;
+
+    uint16_t c;
+
+    ContainerFormat(uint16_t c_) : c(c_) {}
+    operator uint16_t() const { return c; }
+  };
+
+  inline std::string to_string(ContainerFormat c) {
+    switch(c.c) {
+    case ContainerFormat::RIFF: return "RIFF";
+    case ContainerFormat::RIFX: return "RIFX";
+    case ContainerFormat::W64:  return "W64";
+    case ContainerFormat::RF64: return "RF64";
+    case ContainerFormat::AIFF: return "AIFF";
+    default:                    return "N/A";
+    }
+  }
 
   struct NoiseShaperCoef {
     const int fs, id;
@@ -62,6 +83,7 @@ namespace ssrc {
     virtual ~OutletProvider() = default;
     virtual std::shared_ptr<StageOutlet<T>> getOutlet(uint32_t channel) = 0;
     virtual WavFormat getFormat() = 0;
+    virtual ContainerFormat getContainer() { return ContainerFormat(0); }
   };
 
   class DoubleRNG {
@@ -96,6 +118,7 @@ namespace ssrc {
     ~WavReader();
     std::shared_ptr<StageOutlet<T>> getOutlet(uint32_t channel);
     WavFormat getFormat();
+    ContainerFormat getContainer();
   private:
     std::shared_ptr<class WavReaderImpl> impl;
   };
@@ -104,12 +127,12 @@ namespace ssrc {
   class WavWriter {
   public:
     class WavWriterImpl;
-    WavWriter(const char *filename, const WavFormat& fmt,
+    WavWriter(const char *filename, const WavFormat& fmt, const ContainerFormat& cont_,
 	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_);
-    WavWriter(const std::string &filename, const WavFormat& fmt,
+    WavWriter(const std::string &filename, const WavFormat& fmt, const ContainerFormat& cont_,
 	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_) :
-      WavWriter(filename.c_str(), fmt, in_) {}
-    WavWriter(const WavFormat& fmt, uint64_t nFrames,
+      WavWriter(filename.c_str(), fmt, cont_, in_) {}
+    WavWriter(const WavFormat& fmt, const ContainerFormat& cont_, uint64_t nFrames,
 	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_);
     ~WavWriter();
     void execute();

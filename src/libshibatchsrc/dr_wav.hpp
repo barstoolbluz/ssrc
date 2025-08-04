@@ -62,6 +62,25 @@ namespace dr_wav {
 
   std::ostream& operator<<(std::ostream &os, const drwav_fmt &fmt) { return os << to_string(Format(fmt)); }
 
+  class Container {
+    const drwav_container c;
+  public:
+    Container(const Container &c_) : c(c_.c) {}
+    Container(const drwav_container &c_) : c(c_) {}
+    Container(const uint16_t &c_) : c(
+       (c_ == 0x1001 ? drwav_container_rifx :
+	(c_ == 0x1002 ? drwav_container_w64 :
+	 (c_ == 0x1003 ? drwav_container_rf64 :
+	  (c_ == 0x1004 ? drwav_container_aiff : drwav_container_riff))))) {}
+    operator uint16_t() const {
+      return (c == drwav_container_rifx ? 0x1001 :
+	      (c == drwav_container_w64  ? 0x1002 :
+	       (c == drwav_container_rf64 ? 0x1003 :
+		(c == drwav_container_aiff ? 0x1004 : 0x1000))));
+    }
+    operator drwav_container() const { return c; }
+  };
+
   struct Sample24 {
     uint8_t l, m, h;
 
@@ -121,7 +140,7 @@ namespace dr_wav {
     drwav_data_format format;
   public:
     DataFormat(uint32_t channels_, uint32_t sampleRate_, uint32_t bitsPerSample_,
-	       uint32_t format_ = DR_WAVE_FORMAT_PCM, drwav_container container_ = drwav_container_riff) {
+	       uint32_t format_ = DR_WAVE_FORMAT_PCM, Container container_ = drwav_container_riff) {
       format.container = container_;
       format.format = format_;
       format.channels = channels_;
@@ -129,8 +148,8 @@ namespace dr_wav {
       format.bitsPerSample = bitsPerSample_;
     }
 
-    DataFormat(const Format &fmt) {
-      format.container = drwav_container_riff;
+    DataFormat(const Format &fmt, Container container_ = drwav_container_riff) {
+      format.container = container_;
       format.format = fmt.fmt.formatTag == Format::IEEE_FLOAT ? DR_WAVE_FORMAT_IEEE_FLOAT : DR_WAVE_FORMAT_PCM;
       format.channels = fmt.fmt.channels;
       format.sampleRate = fmt.fmt.sampleRate;
@@ -138,7 +157,10 @@ namespace dr_wav {
     }
 
     DataFormat(const drwav_data_format &format_) : format(format_) {}
-    DataFormat(const drwav_fmt &fmt_) : DataFormat(Format(fmt_)) {}
+    DataFormat(const drwav_fmt &fmt_, Container container_ = drwav_container_riff) :
+      DataFormat(Format(fmt_), container_) {}
+
+    drwav_data_format getContent() const { return format; }
 
     friend class WavFile;
   };
@@ -234,6 +256,7 @@ namespace dr_wav {
     drwav getWav() const { return wav; }
 
     drwav_fmt getFmt() const { return wav.fmt; }
+    drwav_container getContainer() const { return wav.container; }
 
     uint32_t getSampleRate() const { return wav.fmt.sampleRate; }
     uint16_t getNBitsPerSample() const { return wav.fmt.bitsPerSample; }
