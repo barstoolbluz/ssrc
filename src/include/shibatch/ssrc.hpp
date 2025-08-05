@@ -25,7 +25,7 @@ namespace ssrc {
       formatTag(w.formatTag), channels(w.channels), sampleRate(w.sampleRate), avgBytesPerSec(w.avgBytesPerSec),
       blockAlign(w.blockAlign), bitsPerSample(w.bitsPerSample), extendedSize(w.extendedSize),
       validBitsPerSample(w.validBitsPerSample), channelMask(w.channelMask) {
-      for(int i=0;i<16;i++) subFormat[i] = w.subFormat[i];
+      memcpy(subFormat, w.subFormat, sizeof(subFormat));
     }
 
     WavFormat(uint16_t formatTag_, uint16_t channels_, uint32_t sampleRate_, uint16_t bitsPerSample_, uint8_t *subFormat_ = nullptr) :

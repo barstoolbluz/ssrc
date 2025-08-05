@@ -44,7 +44,7 @@ ssrc [options] input.wav output.wav
 |----------------------------|------------------------------------------------------------------------------------------------|
 | `--rate <sampling rate>`   | Specify the output sampling rate in Hz.                                                        |
 | `--att <attenuation>`      | Attenuate the output in decibels (dB).                                                         |
-| `--bits <number of bits>`  | Specify the output quantization bit length. Use `0` for IEEE 32-bit floating-point WAV files.  |
+| `--bits <number of bits>`  | Specify the output quantization bit length. Use `-32` for IEEE 32-bit floating-point WAV files.|
 | `--dither <type>`          | Select a dithering type:                                                                       |
 |                            | `0`: Low intensity ATH-based noise shaping                                                     |
 |                            | `98`: Triangular noise shaping                                                                 |
