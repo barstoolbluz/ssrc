@@ -34,11 +34,9 @@ struct ConversionProfile {
 
 const unordered_map<string, ConversionProfile> availableProfiles = {
   { "insane",    { 18, 200, 8.0, true } },
-  { "high",      { 16, 170, 2.0, true } },
-  { "long",      { 15, 140, 1.0, false} },
-  { "normal",    { 14, 120, 1.0, false} },
-  { "standard",  { 14, 120, 1.0, false} },
-  { "default",   { 14, 120, 1.0, false} },
+  { "high",      { 16, 170, 4.0, true } },
+  { "long",      { 15, 145, 4.0, true } },
+  { "standard",  { 14, 145, 2.0, false} },
   { "short",     { 12,  96, 1.0, false} },
   { "fast",      { 10,  96, 1.0, false} },
   { "lightning", {  8,  96, 1.0, false} },
@@ -232,17 +230,188 @@ public:
   WavFormat getFormat() { return format; }
 };
 
+enum SrcType { FILEIN, STDIN, IMPULSE, SWEEP };
+enum DstType { FILEOUT, STDOUT };
+
+template<typename REAL>
+struct Pipeline {
+  string argv0, srcfn, dstfn, profileName, dstContainerName;
+  int64_t rate, bits, dither, pdf;
+  uint64_t seed;
+  double att, peak;
+  bool quiet, debug;
+
+  enum SrcType src;
+  enum DstType dst;
+
+  size_t impulsePeriod, sweepLength;
+  double sweepStart, sweepEnd;
+  int generatorFs;
+
+  ConversionProfile profile;
+
+  Pipeline(const string& argv0_, const string &srcfn_, const string &dstfn_,
+	   const string &profileName_, const string &dstContainerName_,
+	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_,
+	   uint64_t seed_, double att_, double peak_, bool quiet_, bool debug_,
+	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
+	   double sweepStart_, double sweepEnd_, int generatorFs_, ConversionProfile profile_) :
+    argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
+    profileName(profileName_), dstContainerName(dstContainerName_),
+    rate(rate_), bits(bits_), dither(dither_), pdf(pdf_),
+    seed(seed_), att(att_), peak(peak_), quiet(quiet_), debug(debug_),
+    src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
+    sweepStart(sweepStart_), sweepEnd(sweepEnd_), generatorFs(generatorFs_), profile(profile_) {}
+
+  void execute() {
+    if (seed == ~0ULL) seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+
+    const double gain = (1LL << (bits - 1)) - 1;
+    const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
+    const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
+    const int32_t offset  = bits != 8 ? 0 : 0x80;
+    const uint64_t nFramesForStdout = 0x1f000000; // This is a hack.
+
+    shared_ptr<OutletProvider<REAL>> reader;
+
+    switch(src) {
+    case FILEIN:
+      reader = make_shared<WavReader<REAL>>(srcfn);
+      break;
+    case STDIN:
+      reader = make_shared<WavReader<REAL>>();
+      break;
+    case IMPULSE:
+      reader = make_shared<ImpulseGenerator<REAL>>
+	(WavFormat(WavFormat::IEEE_FLOAT, 1, generatorFs, 32), 0.5, impulsePeriod, impulsePeriod * 2);
+      break;
+    case SWEEP:
+      reader = make_shared<SweepGenerator<REAL>>
+	(WavFormat(WavFormat::IEEE_FLOAT, 1, generatorFs, 32), sweepStart, sweepEnd, 0.5, sweepLength);
+      break;
+    }
+
+    const WavFormat srcFormat = reader->getFormat();
+    const ContainerFormat srcContainer = reader->getContainer();
+    const int sfs = srcFormat.sampleRate;
+    const int dfs = rate < 0 ? srcFormat.sampleRate : rate;
+    const int nch = srcFormat.channels;
+
+    if (dstContainerName == "" && srcContainer.c == 0) dstContainerName = "RIFF";
+    if (dstContainerName == "" && srcContainer.c != 0) dstContainerName = to_string(srcContainer);
+
+    if (availableContainers.count(dstContainerName) == 0)
+      showUsage(argv0, "There is no container of name \"" + dstContainerName + "\"");
+
+    const ContainerFormat dstContainer = availableContainers.at(dstContainerName);
+
+    const WavFormat dstFormat = bits < 0 ?
+      WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, -bits) :
+      WavFormat(WavFormat::PCM       , srcFormat.channels, dfs,  bits);
+
+    int shaperid = -1;
+
+    for(int i=0;;i++) {
+      const NoiseShaperCoef &c = noiseShaperCoef[i];
+      if (c.fs < 0) break;
+      if (c.fs == dfs && c.id == dither) {
+	shaperid = i;
+	break;
+      }
+    }
+
+    if (dither != -1 && shaperid == -1)
+      showUsage(argv0, "Dither type " + to_string(dither) + " is not available for destination sampling frequency " + to_string(dfs) + "Hz");
+
+    //
+
+    if (debug) {
+      cerr << "srcfn = "        << srcfn << endl;
+      cerr << "sfs = "          << sfs << endl;
+      cerr << "srcContainer = " << to_string(srcContainer) << endl;
+      cerr << "nch = "          << nch << endl;
+      cerr << endl;
+
+      cerr << "dstfn = "        << dstfn << endl;
+      cerr << "dfs = "          << dfs << endl;
+      cerr << "dstContainer = " << to_string(dstContainer) << endl;
+      cerr << "bits = "         << bits << endl;
+      cerr << endl;
+
+      cerr << "dither = "       << dither << endl;
+      cerr << "shaperid = "     << shaperid << endl;
+      cerr << "pdf = "          << pdf << endl;
+      cerr << "peak = "         << peak << endl;
+      cerr << endl;
+
+      cerr << "profileName = "  << profileName << endl;
+      cerr << "dftfilterlen = " << (1LL << profile.log2dftfilterlen) << endl;
+      cerr << "doublePrec = "   << profile.doublePrecision << endl;
+      cerr << "aa = "           << profile.aa << endl;
+      cerr << "guard = "        << profile.guard << endl;
+      cerr << endl;
+
+      cerr << "att = "          << att << endl;
+      cerr << "quiet = "        << quiet << endl;
+      cerr << "seed = "         << seed << endl;
+      cerr << endl;
+
+      cerr << "generatorFs = "  << generatorFs << endl;
+      cerr << "impulsePeriod = " << impulsePeriod << endl;
+      cerr << "sweepLength = "  << sweepLength << endl;
+      cerr << "sweepStart = "   << sweepStart << endl;
+      cerr << "sweepEnd = "     << sweepStart << endl;
+    }
+
+    if (shaperid == -1 || bits < 0) {
+      vector<shared_ptr<ssrc::StageOutlet<REAL>>> out(nch);
+
+      for(int i=0;i<nch;i++) {
+	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
+					     profile.log2dftfilterlen, profile.aa, profile.guard);
+	out[i] = ssrc;
+      }
+
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out) :
+	make_shared<WavWriter<REAL>>(dstFormat, dstContainer, nFramesForStdout, out);
+      writer->execute();
+    } else {
+      vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
+
+      for(int i=0;i<nch;i++) {
+	std::shared_ptr<DoubleRNG> rng;
+	if (pdf == 0) {
+	  rng = createTriangularRNG(peak, seed + i);
+	} else {
+	  rng = make_shared<RectangularRNG>(-peak, peak, seed + i);
+	}
+
+	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
+					     profile.log2dftfilterlen, profile.aa, profile.guard);
+
+	auto dither = make_shared<Dither<int32_t, REAL>>(ssrc, gain, offset, clipMin, clipMax, &ssrc::noiseShaperCoef[shaperid], rng);
+	out[i] = dither;
+      }
+
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out) :
+	make_shared<WavWriter<int32_t>>(dstFormat, dstContainer, nFramesForStdout, out);
+
+      writer->execute();
+    }
+  }
+};
+
 int main(int argc, char **argv) {
   if (argc < 2) showUsage(argv[0], "");
 
-  string srcfn, dstfn, profileName = "default", dstContainerName = "";
+  string srcfn, dstfn, profileName = "standard", dstContainerName = "";
   int64_t rate = -1, bits = 16, dither = -1, pdf = 0;
   uint64_t seed = ~0ULL;
   double att = 0, peak = 1.0;
   bool quiet = false, debug = false;
 
-  enum { FILEIN, STDIN, IMPULSE, SWEEP } src = FILEIN;
-  enum { FILEOUT, STDOUT } dst = FILEOUT;
+  enum SrcType src = FILEIN;
+  enum DstType dst = FILEOUT;
 
   size_t impulsePeriod = 0, sweepLength = 0;
   double sweepStart = 0, sweepEnd = 0;
@@ -268,8 +437,8 @@ int main(int argc, char **argv) {
       if (nextArg+1 >= argc) showUsage(argv[0]);
       char *p;
       bits = strtol(argv[nextArg+1], &p, 0);
-      if (p == argv[nextArg+1] || *p || bits < 0)
-	showUsage(argv[0], "A non-negative integer is expected after --bits.");
+      if (p == argv[nextArg+1] || *p)
+	showUsage(argv[0], "An integer is expected after --bits.");
       nextArg++;
     } else if (string(argv[nextArg]) == "--dither") {
       if (nextArg == 1 && argc == 2) showDitherOptions();
@@ -396,7 +565,7 @@ int main(int argc, char **argv) {
   if (pdf > 1)
     showUsage(argv[0], "PDF ID " + to_string(pdf) + " is not supported");
 
-  if (bits != 0 && bits != 8 && bits != 16 && bits != 24 && bits != 32)
+  if (bits != 8 && bits != 16 && bits != 24 && bits != 32 && bits != -32 && bits != -64)
     showUsage(argv[0], to_string(bits) + "-bit quantization is not supported");
 
   ConversionProfile profile;
@@ -416,184 +585,20 @@ int main(int argc, char **argv) {
   //
 
   try {
-    if (seed == ~0ULL) seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-
-    shared_ptr<OutletProvider<float>> reader;
-
-    switch(src) {
-    case FILEIN:
-      reader = make_shared<WavReader<float>>(srcfn);
-      break;
-    case STDIN:
-      reader = make_shared<WavReader<float>>();
-      break;
-    case IMPULSE:
-      reader = make_shared<ImpulseGenerator<float>>
-	(WavFormat(WavFormat::IEEE_FLOAT, 1, generatorFs, 32), 0.5, impulsePeriod, impulsePeriod * 2);
-      break;
-    case SWEEP:
-      reader = make_shared<SweepGenerator<float>>
-	(WavFormat(WavFormat::IEEE_FLOAT, 1, generatorFs, 32), sweepStart, sweepEnd, 0.5, sweepLength);
-      break;
-    }
-
-    const WavFormat srcFormat = reader->getFormat();
-    const ContainerFormat srcContainer = reader->getContainer();
-    const int sfs = srcFormat.sampleRate;
-    const int dfs = rate < 0 ? srcFormat.sampleRate : rate;
-    const int nch = srcFormat.channels;
-
-    if (dstContainerName == "" && srcContainer.c == 0) dstContainerName = "RIFF";
-    if (dstContainerName == "" && srcContainer.c != 0) dstContainerName = to_string(srcContainer);
-
-    if (availableContainers.count(dstContainerName) == 0)
-      showUsage(argv[0], "There is no container of name \"" + dstContainerName + "\"");
-
-    const ContainerFormat dstContainer = availableContainers.at(dstContainerName);
-
-    int shaperid = -1;
-
-    for(int i=0;;i++) {
-      const NoiseShaperCoef &c = noiseShaperCoef[i];
-      if (c.fs < 0) break;
-      if (c.fs == dfs && c.id == dither) {
-	shaperid = i;
-	break;
-      }
-    }
-
-    if (dither != -1 && shaperid == -1)
-      showUsage(argv[0], "Dither type " + to_string(dither) + " is not available for destination sampling frequency " + to_string(dfs) + "Hz");
-
-    const WavFormat dstFormat = bits == 0 ?
-      WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, 32  ) :
-      WavFormat(WavFormat::PCM       , srcFormat.channels, dfs, bits);
-
-    const double gain = (1LL << (bits - 1)) - 1;
-    const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
-    const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
-    const int32_t offset  = bits != 8 ? 0 : 0x80;
-    const uint64_t nFramesForStdout = 0x1f000000; // This is a hack.
-
-    //
-
-    if (debug) {
-      cerr << "srcfn = "        << srcfn << endl;
-      cerr << "sfs = "          << sfs << endl;
-      cerr << "srcContainer = " << to_string(srcContainer) << endl;
-      cerr << "nch = "          << nch << endl;
-      cerr << endl;
-
-      cerr << "dstfn = "        << dstfn << endl;
-      cerr << "dfs = "          << dfs << endl;
-      cerr << "dstContainer = " << to_string(dstContainer) << endl;
-      cerr << "bits = "         << bits << endl;
-      cerr << endl;
-
-      cerr << "dither = "       << dither << endl;
-      cerr << "shaperid = "     << shaperid << endl;
-      cerr << "pdf = "          << pdf << endl;
-      cerr << "peak = "         << peak << endl;
-      cerr << endl;
-
-      cerr << "profileName = "  << profileName << endl;
-      cerr << "dftfilterlen = " << (1LL << profile.log2dftfilterlen) << endl;
-      cerr << "doublePrec = "   << profile.doublePrecision << endl;
-      cerr << "aa = "           << profile.aa << endl;
-      cerr << "guard = "        << profile.guard << endl;
-      cerr << endl;
-
-      cerr << "att = "          << att << endl;
-      cerr << "quiet = "        << quiet << endl;
-      cerr << "seed = "         << seed << endl;
-      cerr << endl;
-
-      cerr << "generatorFs = "  << generatorFs << endl;
-      cerr << "impulsePeriod = " << impulsePeriod << endl;
-      cerr << "sweepLength = "  << sweepLength << endl;
-      cerr << "sweepStart = "   << sweepStart << endl;
-      cerr << "sweepEnd = "     << sweepStart << endl;
-    }
-
-    //
-
     if (!profile.doublePrecision) {
-      if (shaperid == -1 || bits == 0) {
-	vector<shared_ptr<ssrc::StageOutlet<float>>> out(nch);
-
-	for(int i=0;i<nch;i++) {
-	  auto ssrc = make_shared<SSRC<float>>(reader->getOutlet(i), sfs, dfs,
-					       profile.log2dftfilterlen, profile.aa, profile.guard);
-	  out[i] = ssrc;
-	}
-
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<float>>(dstfn, dstFormat, dstContainer, out) :
-	  make_shared<WavWriter<float>>(dstFormat, dstContainer, nFramesForStdout, out);
-	writer->execute();
-      } else {
-	vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
-
-	for(int i=0;i<nch;i++) {
-	  std::shared_ptr<DoubleRNG> rng;
-	  if (pdf == 0) {
-	    rng = createTriangularRNG(peak, seed + i);
-	  } else {
-	    rng = make_shared<RectangularRNG>(-peak, peak, seed + i);
-	  }
-
-	  auto ssrc = make_shared<SSRC<float>>(reader->getOutlet(i), sfs, dfs,
-					       profile.log2dftfilterlen, profile.aa, profile.guard);
-
-	  auto dither = make_shared<Dither<int32_t, float>>(ssrc, gain, offset, clipMin, clipMax, &ssrc::noiseShaperCoef[shaperid], rng);
-	  out[i] = dither;
-	}
-
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out) :
-	  make_shared<WavWriter<int32_t>>(dstFormat, dstContainer, nFramesForStdout, out);
-
-	writer->execute();
-      }
+      Pipeline<float> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
+			       rate, bits, dither, pdf,
+			       seed, att, peak, quiet, debug,
+			       src, dst, impulsePeriod, sweepLength,
+			       sweepStart, sweepEnd, generatorFs, profile);
+      pipeline.execute();
     } else {
-      // Create a double precision pipe
-
-      if (shaperid == -1 || bits == 0) {
-	vector<shared_ptr<ssrc::StageOutlet<double>>> out(nch);
-
-	for(int i=0;i<nch;i++) {
-	  auto cast = make_shared<CastStage<double, float>>(reader->getOutlet(i));
-	  auto ssrc = make_shared<SSRC<double>>(cast, sfs, dfs,
-						profile.log2dftfilterlen, profile.aa, profile.guard);
-	  out[i] = ssrc;
-	}
-
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<double>>(dstfn, dstFormat, dstContainer, out) :
-	  make_shared<WavWriter<double>>(dstFormat, dstContainer, nFramesForStdout, out);
-
-	writer->execute();
-      } else {
-	vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
-
-	for(int i=0;i<nch;i++) {
-	  std::shared_ptr<DoubleRNG> rng;
-	  if (pdf == 0) {
-	    rng = createTriangularRNG(peak, seed + i);
-	  } else {
-	    rng = make_shared<RectangularRNG>(-peak, peak, seed + i);
-	  }
-
-	  auto cast = make_shared<CastStage<double, float>>(reader->getOutlet(i));
-	  auto ssrc = make_shared<SSRC<double>>(cast, sfs, dfs,
-						profile.log2dftfilterlen, profile.aa, profile.guard);
-
-	  auto dither = make_shared<Dither<int32_t, double>>(ssrc, gain, offset, clipMin, clipMax, &ssrc::noiseShaperCoef[shaperid], rng);
-	  out[i] = dither;
-	}
-
-	auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out) :
-	  make_shared<WavWriter<int32_t>>(dstFormat, dstContainer, nFramesForStdout, out);
-
-	writer->execute();
-      }
+      Pipeline<double> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
+				rate, bits, dither, pdf,
+				seed, att, peak, quiet, debug,
+				src, dst, impulsePeriod, sweepLength,
+				sweepStart, sweepEnd, generatorFs, profile);
+      pipeline.execute();
     }
   } catch(exception &ex) {
     cerr << "Error : " << ex.what() << endl;

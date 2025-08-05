@@ -53,7 +53,7 @@ ssrc [options] input.wav output.wav
 |                            | `0`: Rectangular                                                                               |
 |                            | `1`: Triangular                                                                                |
 | `--profile <type>`         | Specify a conversion profile:                                                                  |
-|                            | `fast`: This setting is actually enough for almost every purpose                               |
+|                            | `fast`: This setting is enough for almost every purpose                                        |
 |                            | `help`: Show all available profile options                                                     |
 | `--dstContainer <type>`    | Specify a container type:                                                                      |
 |                            | `riff`: This is the most common container type                                                 |

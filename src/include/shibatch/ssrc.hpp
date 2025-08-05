@@ -155,21 +155,5 @@ namespace ssrc {
   private:
     std::shared_ptr<class DitherImpl> impl;
   };
-
-  template<typename OUTTYPE, typename INTYPE>
-  class CastStage : public StageOutlet<OUTTYPE> {
-    std::shared_ptr<ssrc::StageOutlet<INTYPE>> inlet;
-    std::vector<INTYPE> buf;
-  public:
-    CastStage(std::shared_ptr<ssrc::StageOutlet<INTYPE>> in_) : inlet(in_) {}
-    bool atEnd() { return inlet->atEnd(); }
-
-    size_t read(OUTTYPE *out, size_t nSamples) {
-      buf.resize(std::max(buf.size(), nSamples));
-      nSamples = inlet->read(buf.data(), nSamples);
-      for(size_t i = 0;i < nSamples;i++) out[i] = buf[i];
-      return nSamples;
-    }
-  };
 }
 #endif // #ifndef SHIBATCH_SSRC_HPP
