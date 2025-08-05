@@ -96,7 +96,7 @@ void showUsage(const string& argv0, const string& mes = "") {
   cerr << "Options : --rate <sampling rate(Hz)> Specify a sample rate" << endl;
   cerr << "          --att <attenuation(dB)>    Specify an attenuation level of the output signal" << endl;
   cerr << "          --bits <number of bits>    Specify an output quantization bit length" << endl;
-  cerr << "                                     Specify 0 to convert to an IEEE 32-bit FP wav file" << endl;
+  cerr << "                                     Specify -32 to convert to an IEEE 32-bit FP wav file" << endl;
   cerr << "          --dither <type>            Select a type of noise shaper" << endl;
   cerr << "                                       0    : Low intensity ATH-based noise shaping" << endl;
   cerr << "                                       98   : Triangular noise shaping" << endl;
@@ -270,7 +270,7 @@ struct Pipeline {
     const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
     const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
     const int32_t offset  = bits != 8 ? 0 : 0x80;
-    const uint64_t nFramesForStdout = 0x1f000000; // This is a hack.
+    const uint64_t nFramesForStdout = 0xffff000; // This is a hack.
 
     shared_ptr<OutletProvider<REAL>> reader;
 
