@@ -93,7 +93,7 @@ template<typename T> WavWriter<T>::WavWriter(const char *filename,
 					     const std::vector<std::shared_ptr<StageOutlet<T>>> &in_) {
   drwav_fmt fmt;
   memcpy(&fmt, &fmt_, sizeof(fmt));
-  impl = make_shared<WavWriterStage<T>>(filename, dr_wav::DataFormat(fmt, cont_.c), in_);
+  impl = make_shared<WavWriterStage<T>>(filename, fmt, dr_wav::Container(cont_.c), in_);
 }
 
 template<typename T> WavWriter<T>::WavWriter(const ssrc::WavFormat& fmt_, const ssrc::ContainerFormat& cont_,

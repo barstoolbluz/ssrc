@@ -1,4 +1,10 @@
 /*
+
+This is a version patched by Naoki Shibata.
+Extra data handling is added for creating WAV file with WAVE_FORMAT_EXTENSIBLE type.
+
+--
+
 WAV audio loader and writer. Choice of public domain or MIT-0. See license statements at the end of this file.
 dr_wav - v0.14.0 - TBD
 
@@ -923,10 +929,13 @@ typedef struct
     drwav_bool32 isSequentialWrite;
 
 
-    /* A array of metadata. This is valid after the *init_with_metadata call returns. It will be valid until drwav_uninit() is called. You can take ownership of this data with drwav_take_ownership_of_metadata(). */
+    /* An array of metadata. This is valid after the *init_with_metadata call returns. It will be valid until drwav_uninit() is called. You can take ownership of this data with drwav_take_ownership_of_metadata(). */
     drwav_metadata* pMetadata;
     drwav_uint32 metadataCount;
 
+    /* extra data for WAVE_FORMAT_EXTENSIBLE, added by Naoki Shibata */
+    drwav_bool32 hasExtraData;
+    drwav_uint8 extraData[22];
 
     /* A hack to avoid a DRWAV_MALLOC() when opening a decoder with drwav_init_memory(). */
     drwav__memory_stream memoryStream;
@@ -1020,6 +1029,9 @@ DRWAV_API drwav_bool32 drwav_init_write(drwav* pWav, const drwav_data_format* pF
 DRWAV_API drwav_bool32 drwav_init_write_sequential(drwav* pWav, const drwav_data_format* pFormat, drwav_uint64 totalSampleCount, drwav_write_proc onWrite, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks);
 DRWAV_API drwav_bool32 drwav_init_write_sequential_pcm_frames(drwav* pWav, const drwav_data_format* pFormat, drwav_uint64 totalPCMFrameCount, drwav_write_proc onWrite, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks);
 DRWAV_API drwav_bool32 drwav_init_write_with_metadata(drwav* pWav, const drwav_data_format* pFormat, drwav_write_proc onWrite, drwav_seek_proc onSeek, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks, drwav_metadata* pMetadata, drwav_uint32 metadataCount);
+
+// The following function is added by Naoki Shibata
+DRWAV_API drwav_bool32 drwav_init_write_with_extraData(drwav* pWav, const drwav_data_format* pFormat, drwav_write_proc onWrite, drwav_seek_proc onSeek, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks, const void *pExtraData);
 
 /*
 Utility function to determine the target size of the entire data to be written (including all headers and chunks).
@@ -4477,9 +4489,11 @@ DRWAV_PRIVATE drwav_bool32 drwav_preinit_write(drwav* pWav, const drwav_data_for
     }
 
     /* Not currently supporting compressed formats. Will need to add support for the "fact" chunk before we enable this. */
+#if 0
     if (pFormat->format == DR_WAVE_FORMAT_EXTENSIBLE) {
         return DRWAV_FALSE;
     }
+#endif
     if (pFormat->format == DR_WAVE_FORMAT_ADPCM || pFormat->format == DR_WAVE_FORMAT_DVI_ADPCM) {
         return DRWAV_FALSE;
     }
@@ -4570,14 +4584,15 @@ DRWAV_PRIVATE drwav_bool32 drwav_init_write__internal(drwav* pWav, const drwav_d
         runningPos += drwav__write_u32ne_to_le(pWav, 0);                        /* Table length. Always set to zero in our case since we're not doing any other chunks than "DATA". */
     }
 
+    chunkSizeFMT = pWav->hasExtraData ? 24 : 0; // Added by Naoki Shibata
 
     /* "fmt " chunk. */
     if (pFormat->container == drwav_container_riff || pFormat->container == drwav_container_rf64) {
-        chunkSizeFMT = 16;
+        chunkSizeFMT += 16;
         runningPos += drwav__write(pWav, "fmt ", 4);
         runningPos += drwav__write_u32ne_to_le(pWav, (drwav_uint32)chunkSizeFMT);
     } else if (pFormat->container == drwav_container_w64) {
-        chunkSizeFMT = 40;
+        chunkSizeFMT += 40;
         runningPos += drwav__write(pWav, drwavGUID_W64_FMT, 16);
         runningPos += drwav__write_u64ne_to_le(pWav, chunkSizeFMT);
     }
@@ -4588,6 +4603,14 @@ DRWAV_PRIVATE drwav_bool32 drwav_init_write__internal(drwav* pWav, const drwav_d
     runningPos += drwav__write_u32ne_to_le(pWav, pWav->fmt.avgBytesPerSec);
     runningPos += drwav__write_u16ne_to_le(pWav, pWav->fmt.blockAlign);
     runningPos += drwav__write_u16ne_to_le(pWav, pWav->fmt.bitsPerSample);
+
+    // Added by Naoki Shibata
+    if (pWav->hasExtraData) {
+      runningPos += drwav__write_u16ne_to_le(pWav, 22);
+      runningPos += drwav__write(pWav, pWav->extraData, 22);
+      pWav->fmt.extendedSize = 22;
+      DRWAV_COPY_MEMORY((void *)&pWav->fmt.validBitsPerSample, pWav->extraData, 22);
+    }
 
     /* TODO: is a 'fact' chunk required for DR_WAVE_FORMAT_IEEE_FLOAT? */
 
@@ -4658,6 +4681,19 @@ DRWAV_API drwav_bool32 drwav_init_write_with_metadata(drwav* pWav, const drwav_d
 
     pWav->pMetadata     = pMetadata;
     pWav->metadataCount = metadataCount;
+
+    return drwav_init_write__internal(pWav, pFormat, 0);
+}
+
+// The following function is added by Naoki Shibata
+DRWAV_API drwav_bool32 drwav_init_write_with_extraData(drwav* pWav, const drwav_data_format* pFormat, drwav_write_proc onWrite, drwav_seek_proc onSeek, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks, const void* pExtraData)
+{
+    if (!drwav_preinit_write(pWav, pFormat, DRWAV_FALSE, onWrite, onSeek, pUserData, pAllocationCallbacks)) {
+        return DRWAV_FALSE;
+    }
+
+    DRWAV_COPY_MEMORY(pWav->extraData, pExtraData, sizeof(pWav->extraData));
+    pWav->hasExtraData = 1;
 
     return drwav_init_write__internal(pWav, pFormat, 0);
 }

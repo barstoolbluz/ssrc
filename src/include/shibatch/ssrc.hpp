@@ -11,7 +11,14 @@
 
 namespace ssrc {
   struct WavFormat {
-    static const inline uint16_t PCM = 0x0001, IEEE_FLOAT = 0x0003;
+    static const inline uint16_t PCM = 0x0001, IEEE_FLOAT = 0x0003, EXTENSIBLE = 0xfffe;
+
+    static const inline uint8_t KSDATAFORMAT_SUBTYPE_PCM[] = {
+      0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71
+    };
+    static const inline uint8_t KSDATAFORMAT_SUBTYPE_IEEE_FLOAT[] = {
+      0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71
+    };
 
     uint16_t formatTag, channels;
     uint32_t sampleRate, avgBytesPerSec;
@@ -28,10 +35,10 @@ namespace ssrc {
       memcpy(subFormat, w.subFormat, sizeof(subFormat));
     }
 
-    WavFormat(uint16_t formatTag_, uint16_t channels_, uint32_t sampleRate_, uint16_t bitsPerSample_, uint8_t *subFormat_ = nullptr) :
+    WavFormat(uint16_t formatTag_, uint16_t channels_, uint32_t sampleRate_, uint16_t bitsPerSample_, uint32_t channelMask_ = 0, const uint8_t *subFormat_ = nullptr) :
       formatTag(formatTag_), channels(channels_), sampleRate(sampleRate_), avgBytesPerSec(0),
       blockAlign((uint32_t)channels_ * bitsPerSample_ / 8), bitsPerSample(bitsPerSample_),
-      extendedSize(0), validBitsPerSample(0), channelMask(0) {
+      extendedSize(0), validBitsPerSample(0), channelMask(channelMask_) {
       if (subFormat_) memcpy(subFormat, subFormat_, sizeof(subFormat));
     }
   };
@@ -69,6 +76,7 @@ namespace ssrc {
   public:
     virtual ~StageOutlet() = default;
     virtual bool atEnd() = 0;
+    virtual bool available() { return !atEnd(); }
 
     /**
      * Returns 0 only when EOF.

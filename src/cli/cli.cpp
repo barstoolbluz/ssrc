@@ -230,6 +230,11 @@ public:
   WavFormat getFormat() { return format; }
 };
 
+static inline int64_t timeus() {
+  return chrono::duration_cast<chrono::microseconds>
+    (chrono::system_clock::now() - chrono::system_clock::from_time_t(0)).count();
+}
+
 enum SrcType { FILEIN, STDIN, IMPULSE, SWEEP };
 enum DstType { FILEOUT, STDOUT };
 
@@ -305,9 +310,24 @@ struct Pipeline {
 
     const ContainerFormat dstContainer = availableContainers.at(dstContainerName);
 
-    const WavFormat dstFormat = bits < 0 ?
-      WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, -bits) :
-      WavFormat(WavFormat::PCM       , srcFormat.channels, dfs,  bits);
+    WavFormat dstFormat;
+
+    switch(srcFormat.formatTag) {
+    case WavFormat::PCM:
+    case WavFormat::IEEE_FLOAT:
+      dstFormat = bits < 0 ?
+	WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, -bits) :
+	WavFormat(WavFormat::PCM       , srcFormat.channels, dfs,  bits);
+      break;
+    case WavFormat::EXTENSIBLE:
+      dstFormat =
+	WavFormat(WavFormat::EXTENSIBLE, srcFormat.channels, dfs, abs(bits), srcFormat.channelMask,
+		  bits < 0 ? WavFormat::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT : WavFormat::KSDATAFORMAT_SUBTYPE_PCM);
+      break;
+    default:
+      showUsage(argv0, "Unsupported format tag in the source wav");
+      break;
+    }
 
     int shaperid = -1;
 
@@ -324,6 +344,8 @@ struct Pipeline {
       showUsage(argv0, "Dither type " + to_string(dither) + " is not available for destination sampling frequency " + to_string(dfs) + "Hz");
 
     //
+
+    int64_t timeStart = 0;
 
     if (debug) {
       cerr << "srcfn = "        << srcfn << endl;
@@ -361,6 +383,8 @@ struct Pipeline {
       cerr << "sweepLength = "  << sweepLength << endl;
       cerr << "sweepStart = "   << sweepStart << endl;
       cerr << "sweepEnd = "     << sweepStart << endl;
+
+      timeStart = timeus();
     }
 
     if (shaperid == -1 || bits < 0) {
@@ -397,6 +421,11 @@ struct Pipeline {
 	make_shared<WavWriter<int32_t>>(dstFormat, dstContainer, nFramesForStdout, out);
 
       writer->execute();
+    }
+
+    if (debug) {
+      int64_t timeEnd = timeus();
+      cerr << endl << "Elapsed time : " << ((timeEnd - timeStart) * 0.000001) << " seconds" << endl;
     }
   }
 };

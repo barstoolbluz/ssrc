@@ -12,10 +12,15 @@ Shibatch Sampling Rate Converter (SSRC) is a fast and high-quality sampling rate
 - **SIMD Optimization**: Takes advantage of SIMD (Single Instruction, Multiple Data) techniques for accelerated processing.
 - **Dithering Functionality**: Supports various dithering techniques, including noise shaping based on the absolute threshold of hearing (ATH) curve.
 - **Specialized Filters**: Implements high-order filters to address the challenges of converting between 44.1kHz and 48kHz.
+- **Selectable Conversion Profile**: You can select the filter lengths and computing precision. Single-precision computation is generally sufficient for audio processing, and even the standard profile allows for highly accurate conversion. However, since this tool is designed for audiophiles, you can also select a profile that performs all computation in double precision.
+
 
 ## Why SSRC?
 
 Sampling rates of 44.1kHz (used in CDs) and 48kHz (used in DVDs) are widely used, but their conversion ratio (147:160) requires highly sophisticated algorithms to maintain quality. SSRC addresses this challenge by using an FFT-based approach, coupled with SleefDFT and SIMD optimization, to achieve a balance between speed and audio fidelity.
+
+See [here](http://shibatch.github.io/ssrc) for some experimental results.
+
 
 ## Getting Started
 
@@ -109,6 +114,9 @@ ssrc --rate 48000 --dither 0 input.wav output.wav
     ```bat
     winbuild-clang.bat -DCMAKE_BUILD_TYPE=Release
     ```
+
+5. Copy libomp.dll to the directory where the exe file is located.
+
 
 ## Credits
 

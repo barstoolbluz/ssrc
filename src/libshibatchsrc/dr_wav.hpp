@@ -23,13 +23,14 @@ namespace dr_wav {
   public:
     static const uint16_t PCM = 0x0001, IEEE_FLOAT = 0x0003, ALAW = 0x0006, MULAW = 0x0007, EXTENSIBLE = 0xFFFE;
 
-    Format(uint16_t formatTag_, uint16_t channels_, uint32_t sampleRate_, uint16_t bitsPerSample_, uint8_t *subFormat_ = nullptr) {
+    Format(uint16_t formatTag_, uint16_t channels_, uint32_t sampleRate_, uint16_t bitsPerSample_, uint32_t channelMask_ = 0, uint8_t *subFormat_ = nullptr) {
       memset(&fmt, 0, sizeof(fmt));
 
       fmt.formatTag = formatTag_;
       fmt.channels = channels_;
       fmt.sampleRate = sampleRate_;
       fmt.bitsPerSample = bitsPerSample_;
+      fmt.channelMask = channelMask_;
       if (subFormat_) memcpy(fmt.subFormat, subFormat_, sizeof(fmt.subFormat));
 
       fmt.blockAlign = (uint32_t)channels_ * bitsPerSample_ / 8;
@@ -58,6 +59,7 @@ namespace dr_wav {
     std::ostream& operator<<(std::ostream &os) { return os << to_string(*this); }
 
     friend class DataFormat;
+    friend class WavFile;
   };
 
   std::ostream& operator<<(std::ostream &os, const drwav_fmt &fmt) { return os << to_string(Format(fmt)); }
@@ -148,9 +150,14 @@ namespace dr_wav {
       format.bitsPerSample = bitsPerSample_;
     }
 
-    DataFormat(const Format &fmt, Container container_ = drwav_container_riff) {
+    DataFormat(const Format &fmt, const Container& container_ = drwav_container_riff) {
       format.container = container_;
-      format.format = fmt.fmt.formatTag == Format::IEEE_FLOAT ? DR_WAVE_FORMAT_IEEE_FLOAT : DR_WAVE_FORMAT_PCM;
+      switch(fmt.fmt.formatTag) {
+      case Format::IEEE_FLOAT: format.format = DR_WAVE_FORMAT_IEEE_FLOAT; break;
+      case Format::PCM:        format.format = DR_WAVE_FORMAT_PCM;        break;
+      case Format::EXTENSIBLE: format.format = DR_WAVE_FORMAT_EXTENSIBLE; break;
+      default: throw(std::runtime_error("DataFormat::DataFormat Unsupported formatTag"));
+      }
       format.channels = fmt.fmt.channels;
       format.sampleRate = fmt.fmt.sampleRate;
       format.bitsPerSample = fmt.fmt.bitsPerSample;
@@ -185,12 +192,13 @@ namespace dr_wav {
     };
 
     drwav wav;
+    FILE *fp = nullptr;
 
-    static size_t on_stdin_read(void* pUserData, void* pBuffer, size_t bytesToRead) {
-      return fread(pBuffer, 1, bytesToRead, stdin);
+    static size_t on_read(void* pUserData, void* pBuffer, size_t bytesToRead) {
+      return fread(pBuffer, 1, bytesToRead, (FILE *)pUserData);
     }
 
-    static drwav_bool32 on_stdin_seek(void* pUserData, int offset, drwav_seek_origin origin) {
+    static drwav_bool32 on_seek(void* pUserData, int offset, drwav_seek_origin origin) {
       int whence = SEEK_SET;
       if (origin == DRWAV_SEEK_CUR) {
         whence = SEEK_CUR;
@@ -198,11 +206,16 @@ namespace dr_wav {
         whence = SEEK_END;
       }
 
-      return fseek(stdin, offset, whence) == 0;
+      return fseek((FILE *)pUserData, offset, whence) == 0;
     }
 
-    static size_t on_stdout_write(void* pUserData, const void* pData, size_t bytesToWrite) {
-      return fwrite(pData, 1, bytesToWrite, stdout);
+    static drwav_bool32 on_tell(void *pUserData, drwav_int64* pCursor) {
+      *pCursor = ftell((FILE *)pUserData);
+      return DRWAV_TRUE;
+    }
+
+    static size_t on_write(void* pUserData, const void* pData, size_t bytesToWrite) {
+      return fwrite(pData, 1, bytesToWrite, (FILE *)pUserData);
     }
 
   public:
@@ -218,12 +231,44 @@ namespace dr_wav {
 	throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
     }
 
+    WavFile(const std::string &filename, const drwav_fmt &fmt, const Container& container) {
+      memset(&wav, 0, sizeof(wav));
+      switch(fmt.formatTag) {
+      case Format::PCM:
+      case Format::IEEE_FLOAT:
+	{
+	  drwav_data_format df = DataFormat(fmt, container).getContent();
+	  if (!drwav_init_file_write(&wav, filename.c_str(), &df, NULL))
+	    throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
+	}
+	break;
+      case Format::EXTENSIBLE:
+	{
+	  fp = fopen(filename.c_str(), "wb");
+	  if (!fp) throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
+	  const drwav_data_format df = DataFormat(fmt, container).getContent();
+
+	  uint8_t extraData[22];
+
+	  memcpy(&extraData[0], &fmt.validBitsPerSample, sizeof(uint16_t));
+	  memcpy(&extraData[2], &fmt.channelMask, sizeof(uint32_t));
+	  memcpy(&extraData[6], fmt.subFormat, 16);
+
+	  if (!drwav_init_write_with_extraData(&wav, &df, on_write, on_seek, fp, nullptr, (const void *)&extraData))
+	    throw(std::runtime_error("WavFile::WavFile Could not init drwav for writing"));
+	}
+	break;
+      default:
+	throw(std::runtime_error("WavFile::WavFile Unsupported format tag"));
+      }
+    }
+
     WavFile() {
       memset(&wav, 0, sizeof(wav));
 #ifdef _WIN32
       _setmode(_fileno(stdin), _O_BINARY);
 #endif
-      if (!drwav_init(&wav, on_stdin_read, on_stdin_seek, NULL, NULL, NULL))
+      if (!drwav_init(&wav, on_read, on_seek, NULL, stdin, NULL))
 	throw(std::runtime_error("WavFile::WavFile Could not open STDIN for reading"));
     }
 
@@ -232,7 +277,7 @@ namespace dr_wav {
       _setmode(_fileno(stdout), _O_BINARY);
 #endif
       memset(&wav, 0, sizeof(wav));
-      if (!drwav_init_write_sequential_pcm_frames(&wav, &format.format, totalPCMFrameCount, on_stdout_write, NULL, NULL))
+      if (!drwav_init_write_sequential_pcm_frames(&wav, &format.format, totalPCMFrameCount, on_write, stdout, NULL))
 	throw(std::runtime_error("WavFile::WavFile Could not open STDOUT for writing"));
     }
 
@@ -243,7 +288,13 @@ namespace dr_wav {
 
     WavFile(const WavFile &w) = delete;
 
-    ~WavFile() { drwav_uninit(&wav); }
+    ~WavFile() {
+      drwav_uninit(&wav);
+      if (fp) {
+	fclose(fp);
+	fp = nullptr;
+      }
+    }
 
     static void checkResult(drwav_int32 c, std::string s = "") {
       if (c == 0) return;
@@ -299,34 +350,40 @@ namespace dr_wav {
     }
 
     size_t writePCM(float *ptr, size_t nFrame) {
-      if (wav.fmt.formatTag == Format::IEEE_FLOAT && wav.fmt.bitsPerSample == 32)
+      if ((wav.fmt.formatTag == Format::IEEE_FLOAT || wav.fmt.subFormat[0] == 0x03) &&
+	  wav.fmt.bitsPerSample == 32)
 	return drwav_write_pcm_frames(&wav, nFrame, ptr);
-      
-      if (wav.fmt.formatTag == Format::IEEE_FLOAT && wav.fmt.bitsPerSample == 64) {
+
+      if ((wav.fmt.formatTag == Format::IEEE_FLOAT || wav.fmt.subFormat[0] == 0x03) &&
+	  wav.fmt.bitsPerSample == 64) {
 	buff64.resize(std::max(buff64.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) buff64[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * sizeof(double), buff64.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 32) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 32) {
 	bufi32.resize(std::max(bufi32.size(), nFrame * getNChannels()));
 	drwav_f32_to_s32(bufi32.data(), ptr, nFrame * getNChannels());
 	return drwav_write_pcm_frames(&wav, nFrame, bufi32.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 24) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 24) {
 	bufi24.resize(std::max(bufi24.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi24[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 3, bufi24.data());
       }
       
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 16) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 16) {
 	bufi16.resize(std::max(bufi16.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi16[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 2, bufi16.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 8) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 8) {
 	bufi8.resize(std::max(bufi8.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi8[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 1, bufi8.data());
@@ -338,34 +395,40 @@ namespace dr_wav {
     }
 
     size_t writePCM(double *ptr, size_t nFrame) {
-      if (wav.fmt.formatTag == Format::IEEE_FLOAT && wav.fmt.bitsPerSample == 64)
+      if ((wav.fmt.formatTag == Format::IEEE_FLOAT || wav.fmt.subFormat[0] == 0x03) &&
+	  wav.fmt.bitsPerSample == 64)
 	return drwav_write_raw(&wav, nFrame * getNChannels() * sizeof(double), ptr);
       
-      if (wav.fmt.formatTag == Format::IEEE_FLOAT && wav.fmt.bitsPerSample == 32) {
+      if ((wav.fmt.formatTag == Format::IEEE_FLOAT || wav.fmt.subFormat[0] == 0x03) &&
+	  wav.fmt.bitsPerSample == 32) {
 	buff32.resize(std::max(buff32.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) buff32[i] = ptr[i];
 	return drwav_write_pcm_frames(&wav, nFrame, buff32.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 32) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 32) {
 	bufi32.resize(std::max(bufi32.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi32[i] = ptr[i] * (1LL << 31);
 	return drwav_write_pcm_frames(&wav, nFrame, bufi32.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 24) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 24) {
 	bufi24.resize(std::max(bufi24.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi24[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 3, bufi24.data());
       }
       
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 16) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 16) {
 	bufi16.resize(std::max(bufi16.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi16[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 2, bufi16.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 8) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 8) {
 	bufi8.resize(std::max(bufi8.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi8[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 1, bufi8.data());
@@ -374,39 +437,44 @@ namespace dr_wav {
       std::string s = "WavFile::writePCM(f32) Unsupported format, formatTag = ";
       s += std::to_string(wav.fmt.formatTag) + ", bitsPerSample = " + std::to_string(wav.fmt.bitsPerSample);
       throw(std::runtime_error(s.c_str()));
-
     }
 
     size_t writePCM(int32_t *ptr, size_t nFrame) {
-      if (wav.fmt.formatTag == Format::PCM && (wav.fmt.bitsPerSample == 32)) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 32) {
 	return drwav_write_pcm_frames(&wav, nFrame, ptr);
       }
       
-      if (wav.fmt.formatTag == Format::IEEE_FLOAT && wav.fmt.bitsPerSample == 32) {
+      if ((wav.fmt.formatTag == Format::IEEE_FLOAT || wav.fmt.subFormat[0] == 0x03) &&
+	  wav.fmt.bitsPerSample == 32) {
 	buff32.resize(std::max(buff32.size(), nFrame * getNChannels()));
 	drwav_s32_to_f32(buff32.data(), ptr, nFrame * getNChannels());
 	return drwav_write_pcm_frames(&wav, nFrame, buff32.data());
       }
 
-      if (wav.fmt.formatTag == Format::IEEE_FLOAT && wav.fmt.bitsPerSample == 64) {
+      if ((wav.fmt.formatTag == Format::IEEE_FLOAT || wav.fmt.subFormat[0] == 0x03) &&
+	  wav.fmt.bitsPerSample == 64) {
 	buff64.resize(std::max(buff64.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) buff64[i] = ptr[i] * (1.0 / (1 << 23));
 	return drwav_write_raw(&wav, nFrame * getNChannels() * sizeof(double), buff64.data());
       }
       
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 24) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 24) {
 	bufi24.resize(std::max(bufi24.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi24[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 3, bufi24.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 16) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 16) {
 	bufi16.resize(std::max(bufi16.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi16[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 2, bufi16.data());
       }
 
-      if (wav.fmt.formatTag == Format::PCM && wav.fmt.bitsPerSample == 8) {
+      if ((wav.fmt.formatTag == Format::PCM || wav.fmt.subFormat[0] == 0x01) &&
+	  wav.fmt.bitsPerSample == 8) {
 	bufi8.resize(std::max(bufi8.size(), nFrame * getNChannels()));
 	for(size_t i=0;i<nFrame * getNChannels();i++) bufi8[i] = ptr[i];
 	return drwav_write_raw(&wav, nFrame * getNChannels() * 1, bufi8.data());
