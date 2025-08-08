@@ -172,7 +172,7 @@ ssrc::WavWriter<float> writer("output.wav", dstFormat, dstContainer, outlets);
 writer.execute();
 ```
 
-### 2.3. Complete Example
+### 2.4. Complete Example
 
 Here is a complete example that ties everything together. It reads a WAV file, resamples all its channels from 44.1kHz to 96kHz using single-precision floats, and saves the result as a 24-bit PCM WAV file.
 
@@ -325,22 +325,26 @@ auto dither_stage = std::make_shared<ssrc::Dither<int32_t, double>>(resampler, .
 
 ### 3.3. `WavFormat` and `ContainerFormat`
 
-These two structs are used to describe the properties of the audio data and its file container.
+These two structs work together to describe the audio data's format and the file structure that contains it.
 
 #### `ssrc::ContainerFormat`
-This struct specifies the top-level file format. It's a simple wrapper around a `uint16_t`.
-- `ContainerFormat::RIFF`: The standard and most common WAV file container.
-- `ContainerFormat::RIFX`: A big-endian variant of RIFF.
-- `ContainerFormat::W64`: Sony Wave64 format, used for files larger than 4 GB.
-- `ContainerFormat::RF64`: An extension of RIFF that allows for file sizes greater than 4 GB.
+This struct specifies the overall file type by defining its main **`ChunkID`**. This ID tells parsers what kind of file they are dealing with. The choice of container is passed to the underlying `dr_wav` library.
+
+- `ContainerFormat::RIFF`: The `ChunkID` is `'RIFF'`. This is the classic WAV format, but it is limited to a maximum file size of 4 GB.
+- `ContainerFormat::W64`: Sony Wave64 format. This is one of several competing formats designed to exceed the 4GB limit using 64-bit addressing.
+- `ContainerFormat::RF64`: An extension of RIFF that is also 64-bit compatible. It is designed to be backwards-compatible with systems that don't recognize it.
 - `ContainerFormat::AIFF`: Audio Interchange File Format, used by Apple.
+- `ContainerFormat::RIFX`: A big-endian variant of RIFF.
+
+Choosing a 64-bit compatible container like `W64` or `RF64` is essential if your output file might be larger than 4 GB.
 
 #### `ssrc::WavFormat`
-This struct holds the detailed audio format information.
+This struct's contents correspond directly to the data stored in a WAV file's **`fmt ` chunk**. It describes the specific properties of the raw audio data itself.
+
 - `formatTag`: The audio codec. Key values are:
     - `WavFormat::PCM`: Standard Pulse Code Modulation.
     - `WavFormat::IEEE_FLOAT`: 32-bit or 64-bit floating-point samples.
-    - `WavFormat::EXTENSIBLE`: Used for formats that don't fit in the standard PCM header, such as multi-channel audio (more than 2 channels) or high bit depths (>16).
+    - `WavFormat::EXTENSIBLE`: A newer format tag used for audio that doesn't fit the classic `PCM` specification, such as multi-channel audio (more than 2 channels) or high bit depths (>16).
 - `channels`: Number of audio channels.
 - `sampleRate`: The sample rate in Hz (e.g., 44100).
 - `bitsPerSample`: The bit depth (e.g., 16, 24, 32).
