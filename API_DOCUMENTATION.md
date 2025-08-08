@@ -80,7 +80,37 @@ The typical pipeline looks like this:
 -   **`Dither`**: Takes the `SSRC`'s output and applies dithering. It is also a `StageOutlet`.
 -   **`WavWriter`**: Takes one or more final `StageOutlet`s and writes the data to a `.wav` file.
 
-### 2.2. Key Classes
+### 2.2. Pipeline Topology and Data Flow
+
+A key detail of the implementation, as seen in `src/cli/cli.cpp`, is that the pipeline **branches** after the `WavReader` to process each audio channel in parallel. A separate `SSRC` (and `Dither`, if used) instance is created for each channel. The `WavWriter` is then responsible for **merging** these parallel streams back into a single, interleaved audio file.
+
+For a stereo (2-channel) file, the topology looks like this:
+
+```text
+                                 +------------------------+
+                             +-->| SSRC<T> for Channel 0  |--+
+                             |   +------------------------+  |
+                             |                             |
++-----------+     +----------+                             +------------+
+| WavReader |-->--| (Fork)   |                             | WavWriter  |--> output.wav
++-----------+     +----------+                             +------------+
+                             |                             |
+                             |   +------------------------+  |
+                             +-->| SSRC<T> for Channel 1  |--+
+                                 +------------------------+
+```
+
+-   **Forking**: The `WavReader` provides a separate `StageOutlet` for each channel (`reader->getOutlet(0)`, `reader->getOutlet(1)`, etc.). This is where the pipeline splits.
+-   **Parallel Processing**: Each channel is processed independently. This design is clean and allows for channel-specific processing if needed.
+-   **Merging**: The `WavWriter` takes a `std::vector` of `StageOutlet`s in its constructor. It reads one sample from each outlet in turn to reconstruct the interleaved audio data needed for the final WAV file.
+
+#### Data Type Lifecycle
+The data type of the samples flowing through the pipeline also follows a specific path:
+1.  **Floating-Point Processing**: The initial processing stages (`WavReader`, `SSRC`) are templated and typically operate on `float` or `double`. This maintains high precision during the most critical calculations (resampling).
+2.  **Conversion to Integer**: If dithering is used, the `Dither` stage is responsible for converting the high-precision floating-point signal into an integer signal.
+3.  **Unified Integer Type (`int32_t`)**: Crucially, the `Dither` stage always outputs `int32_t`, regardless of the final target bit depth (e.g., 16-bit or 24-bit). This simplifies the design, as any downstream stages (like the `WavWriter`) only need to handle a single, universal integer type. The `WavWriter` is then responsible for taking the `int32_t` data and correctly writing it to the file with the specified final bit depth.
+
+### 2.3. Key Classes
 
 All necessary classes are available by including one header:
 ```cpp
@@ -411,3 +441,78 @@ The `SSRC` constructor takes three parameters that define the conversion profile
     -   **Values**: Typical values range from `1.0` to `8.0`.
 
 These parameters are bundled together in the command-line tool's "profiles". When using the library directly, you can mix and match these values to create a custom profile tailored to your specific needs.
+
+### 3.6. Implementing Custom Processing Stages with `StageOutlet`
+
+The entire `libshibatch` library is built on a simple but powerful design pattern: the **processing pipeline**. Audio data flows from a source, through one or more processing stages, to a destination. Each of these stages is connected by a unified interface: `ssrc::StageOutlet<T>`.
+
+This interface is the fundamental building block of the library. `WavReader` is a `StageOutlet`, `SSRC` is a `StageOutlet`, and `Dither` is a `StageOutlet`. By making your own class that implements this interface, you can create custom audio effects, generators, or other processing tools and seamlessly insert them anywhere in the pipeline.
+
+To create a custom stage, you must inherit from `ssrc::StageOutlet<T>` and implement its two pure virtual functions:
+
+-   `virtual bool atEnd()`
+    -   **Purpose**: This function should return `true` if the stream has no more data to provide, and `false` otherwise.
+    -   **Implementation**: If your stage is processing data from an input stage, you should typically call `atEnd()` on your input and return its value. If you are generating data, you return `true` when your generation logic is complete.
+
+-   `virtual size_t read(T *ptr, size_t n)`
+    -   **Purpose**: This is the core function where data is processed and provided. It should fill the provided buffer `ptr` with up to `n` samples of audio data.
+    -   **Return Value**: It must return the number of samples that were actually written to `ptr`. A return value of `0` signals that the stream has ended (i.e., `atEnd()` is now `true`).
+    -   **Blocking**: If no data is currently available but the stream is not at the end, this function should block until data becomes available.
+
+**Example: Creating a Custom Gain (Volume) Stage**
+
+Here is a complete example of a simple gain stage. It reads data from an input outlet, multiplies each sample by a constant factor, and can be inserted anywhere in the pipeline.
+
+```cpp
+#include <memory>
+#include "shibatch/ssrc.hpp"
+
+template <typename T>
+class GainStage : public ssrc::StageOutlet<T> {
+private:
+    std::shared_ptr<ssrc::StageOutlet<T>> inlet_; // The previous stage in the pipeline
+    double gain_factor_;
+
+public:
+    // Constructor takes the input stage and the gain factor (e.g., 1.0 is no change)
+    GainStage(std::shared_ptr<ssrc::StageOutlet<T>> inlet, double gain_factor)
+        : inlet_(inlet), gain_factor_(gain_factor) {}
+
+    // atEnd() is true if the input stage is at its end.
+    bool atEnd() override {
+        return inlet_->atEnd();
+    }
+
+    // read() fetches data from the input, applies gain, and returns it.
+    size_t read(T* ptr, size_t n) override {
+        // Read data from the input stage into our buffer.
+        size_t samples_read = inlet_->read(ptr, n);
+
+        // Apply the gain to each sample that was read.
+        for (size_t i = 0; i < samples_read; ++i) {
+            ptr[i] *= gain_factor_;
+        }
+
+        return samples_read;
+    }
+};
+
+// --- How to use it in a pipeline ---
+
+//
+// WavReader -> SSRC -> GainStage -> WavWriter
+//
+
+// ... after creating the SSRC resampler ...
+// auto resampler = std::make_shared<ssrc::SSRC<float>>(...);
+
+// Create an instance of your gain stage, wrapping the resampler.
+// This example reduces the volume by half (gain factor 0.5).
+auto gain_stage = std::make_shared<GainStage<float>>(resampler, 0.5);
+
+// Pass the gain stage to the writer instead of the resampler.
+// std::vector<std::shared_ptr<ssrc::StageOutlet<float>>> outlets;
+// outlets.push_back(gain_stage);
+// auto writer = std::make_shared<ssrc::WavWriter<float>>(..., outlets);
+// writer->execute();
+```
