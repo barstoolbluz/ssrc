@@ -1032,6 +1032,7 @@ DRWAV_API drwav_bool32 drwav_init_write_with_metadata(drwav* pWav, const drwav_d
 
 // The following function is added by Naoki Shibata
 DRWAV_API drwav_bool32 drwav_init_write_with_extraData(drwav* pWav, const drwav_data_format* pFormat, drwav_write_proc onWrite, drwav_seek_proc onSeek, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks, const void *pExtraData);
+DRWAV_API drwav_bool32 drwav_init_write_sequential_with_extraData(drwav* pWav, const drwav_data_format* pFormat, drwav_uint64 totalSampleCount, drwav_write_proc onWrite, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks, const void *pExtraData);
 
 /*
 Utility function to determine the target size of the entire data to be written (including all headers and chunks).
@@ -4696,6 +4697,19 @@ DRWAV_API drwav_bool32 drwav_init_write_with_extraData(drwav* pWav, const drwav_
     pWav->hasExtraData = 1;
 
     return drwav_init_write__internal(pWav, pFormat, 0);
+}
+
+// The following function is added by Naoki Shibata
+DRWAV_API drwav_bool32 drwav_init_write_sequential_with_extraData(drwav* pWav, const drwav_data_format* pFormat, drwav_uint64 totalSampleCount, drwav_write_proc onWrite, void* pUserData, const drwav_allocation_callbacks* pAllocationCallbacks, const void* pExtraData)
+{
+    if (!drwav_preinit_write(pWav, pFormat, DRWAV_TRUE, onWrite, NULL, pUserData, pAllocationCallbacks)) {
+        return DRWAV_FALSE;
+    }
+
+    DRWAV_COPY_MEMORY(pWav->extraData, pExtraData, sizeof(pWav->extraData));
+    pWav->hasExtraData = 1;
+
+    return drwav_init_write__internal(pWav, pFormat, totalSampleCount); /* DRWAV_TRUE = Sequential */
 }
 
 

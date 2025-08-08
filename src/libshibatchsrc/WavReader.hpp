@@ -87,7 +87,7 @@ namespace shibatch {
     }
 
   public:
-    WavReaderStage(const char *filename) : wav(filename) {
+    WavReaderStage(const std::string &filename) : wav(filename.c_str()) {
       outlet.resize(getNChannels());
       for(unsigned ch=0;ch<getNChannels();ch++)
 	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
@@ -98,8 +98,6 @@ namespace shibatch {
       for(unsigned ch=0;ch<getNChannels();ch++)
 	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
     }
-
-    WavReaderStage(const std::string &filename) : WavReaderStage(filename.c_str()) {}
 
     drwav getWav() const { return wav.getWav(); }
     drwav_fmt getFmt() const { return wav.getFmt(); }

@@ -150,7 +150,7 @@ class ImpulseGenerator : public ssrc::OutletProvider<T> {
     size_t read(T *out, size_t nSamples) {
       size_t ret = 0;
 
-      nSamples = std::min(n, nSamples);
+      nSamples = min(n, nSamples);
 
       while(nSamples > 0) {
 	while(remaining > 0 && nSamples > 0) {
@@ -183,7 +183,7 @@ public:
     for(unsigned i=0;i<format.channels;i++) v[i] = make_shared<Outlet>(amp_, period_, n_);
   }
 
-  std::shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c) { return v[c]; }
+  shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c) { return v[c]; }
   WavFormat getFormat() { return format; }
 };
 
@@ -204,7 +204,7 @@ class SweepGenerator : public ssrc::OutletProvider<T> {
     bool atEnd() { return n == 0; }
 
     size_t read(T *out, size_t nSamples) {
-      nSamples = std::min(n, nSamples);
+      nSamples = min(n, nSamples);
 
       for(size_t i=0;i<nSamples;i++) {
 	*out++ = amp * sin(phase);
@@ -226,8 +226,41 @@ public:
     for(unsigned i=0;i<format.channels;i++) v[i] = make_shared<Outlet>(format.sampleRate, start_, end_, amp_, n_);
   }
 
-  std::shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c) { return v[c]; }
+  shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c) { return v[c]; }
   WavFormat getFormat() { return format; }
+};
+
+template<typename T>
+class BufferStage : public StageOutlet<T> {
+  shared_ptr<ssrc::StageOutlet<T>> inlet;
+  const size_t N;
+  vector<T> buf;
+  size_t pos = 0;
+public:
+  BufferStage(shared_ptr<ssrc::StageOutlet<T>> in_, size_t N_ = 65536) : inlet(in_), N(N_) {}
+
+  size_t size() { return buf.size(); }
+
+  bool atEnd() { return pos == buf.size(); }
+
+  void execute() {
+    pos = 0;
+    for(;;) {
+      buf.resize(buf.size() + N);
+      size_t z = inlet->read(buf.data() + pos, N);
+      pos += z;
+      buf.resize(pos);
+      if (z == 0) break;
+    }
+    pos = 0;
+  }
+
+  size_t read(T *out, size_t nSamples) {
+    nSamples = min(buf.size() - pos, nSamples);
+    for(size_t i = 0;i < nSamples;i++) out[i] = buf[i + pos];
+    pos += nSamples;
+    return nSamples;
+  }
 };
 
 static inline int64_t timeus() {
@@ -241,6 +274,7 @@ enum DstType { FILEOUT, STDOUT };
 template<typename REAL>
 struct Pipeline {
   string argv0, srcfn, dstfn, profileName, dstContainerName;
+  uint64_t dstChannelMask;
   int64_t rate, bits, dither, pdf;
   uint64_t seed;
   double att, peak;
@@ -256,13 +290,13 @@ struct Pipeline {
   ConversionProfile profile;
 
   Pipeline(const string& argv0_, const string &srcfn_, const string &dstfn_,
-	   const string &profileName_, const string &dstContainerName_,
+	   const string &profileName_, const string &dstContainerName_, uint64_t dstChannelMask_,
 	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_,
 	   uint64_t seed_, double att_, double peak_, bool quiet_, bool debug_,
 	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
 	   double sweepStart_, double sweepEnd_, int generatorFs_, ConversionProfile profile_) :
     argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
-    profileName(profileName_), dstContainerName(dstContainerName_),
+    profileName(profileName_), dstContainerName(dstContainerName_), dstChannelMask(dstChannelMask_),
     rate(rate_), bits(bits_), dither(dither_), pdf(pdf_),
     seed(seed_), att(att_), peak(peak_), quiet(quiet_), debug(debug_),
     src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
@@ -275,7 +309,6 @@ struct Pipeline {
     const int32_t clipMin = bits != 8 ? -(1LL << (bits - 1)) + 0 : 0x00;
     const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
     const int32_t offset  = bits != 8 ? 0 : 0x80;
-    const uint64_t nFramesForStdout = 0xffff000; // This is a hack.
 
     shared_ptr<OutletProvider<REAL>> reader;
 
@@ -323,6 +356,7 @@ struct Pipeline {
       dstFormat =
 	WavFormat(WavFormat::EXTENSIBLE, srcFormat.channels, dfs, abs(bits), srcFormat.channelMask,
 		  bits < 0 ? WavFormat::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT : WavFormat::KSDATAFORMAT_SUBTYPE_PCM);
+      if (dstChannelMask != ~0ULL) dstFormat.channelMask = dstChannelMask;
       break;
     default:
       showUsage(argv0, "Unsupported format tag in the source wav");
@@ -350,8 +384,16 @@ struct Pipeline {
     if (debug) {
       cerr << "srcfn = "        << srcfn << endl;
       cerr << "sfs = "          << sfs << endl;
-      cerr << "srcContainer = " << to_string(srcContainer) << endl;
       cerr << "nch = "          << nch << endl;
+      cerr << "srcContainer = " << to_string(srcContainer) << endl;
+      cerr << "srcFormatTag = ";
+      switch(srcFormat.formatTag) {
+      case WavFormat::PCM: cerr << "PCM" << endl; break;
+      case WavFormat::IEEE_FLOAT: cerr << "IEEE_FLOAT" << endl; break;
+      case WavFormat::EXTENSIBLE: cerr << "EXTENSIBLE" << endl;
+	cerr << "srcChannelMask = 0x" << format("{:x}", srcFormat.channelMask) << endl;
+	break;
+      }
       cerr << endl;
 
       cerr << "dstfn = "        << dstfn << endl;
@@ -360,17 +402,17 @@ struct Pipeline {
       cerr << "bits = "         << bits << endl;
       cerr << endl;
 
-      cerr << "dither = "       << dither << endl;
-      cerr << "shaperid = "     << shaperid << endl;
-      cerr << "pdf = "          << pdf << endl;
-      cerr << "peak = "         << peak << endl;
-      cerr << endl;
-
       cerr << "profileName = "  << profileName << endl;
       cerr << "dftfilterlen = " << (1LL << profile.log2dftfilterlen) << endl;
       cerr << "doublePrec = "   << profile.doublePrecision << endl;
       cerr << "aa = "           << profile.aa << endl;
       cerr << "guard = "        << profile.guard << endl;
+      cerr << endl;
+
+      cerr << "dither = "       << dither << endl;
+      cerr << "shaperid = "     << shaperid << endl;
+      cerr << "pdf = "          << pdf << endl;
+      cerr << "peak = "         << peak << endl;
       cerr << endl;
 
       cerr << "att = "          << att << endl;
@@ -389,18 +431,28 @@ struct Pipeline {
 
     if (shaperid == -1 || bits < 0) {
       vector<shared_ptr<ssrc::StageOutlet<REAL>>> out(nch);
+      size_t nFrames = 0;
 
       for(int i=0;i<nch;i++) {
 	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
 					     profile.log2dftfilterlen, profile.aa, profile.guard);
 	out[i] = ssrc;
+
+	if (dst == STDOUT) {
+	  auto buf = make_shared<BufferStage<REAL>>(ssrc);
+	  out[i] = buf;
+	  buf->execute();
+	  nFrames = max(nFrames, buf->size());
+	}
       }
 
-      auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out) :
-	make_shared<WavWriter<REAL>>(dstFormat, dstContainer, nFramesForStdout, out);
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out, 0) :
+	make_shared<WavWriter<REAL>>("", dstFormat, dstContainer, out, nFrames);
+
       writer->execute();
     } else {
       vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
+      size_t nFrames = 0;
 
       for(int i=0;i<nch;i++) {
 	std::shared_ptr<DoubleRNG> rng;
@@ -415,10 +467,17 @@ struct Pipeline {
 
 	auto dither = make_shared<Dither<int32_t, REAL>>(ssrc, gain, offset, clipMin, clipMax, &ssrc::noiseShaperCoef[shaperid], rng);
 	out[i] = dither;
+
+	if (dst == STDOUT) {
+	  auto buf = make_shared<BufferStage<int32_t>>(dither);
+	  out[i] = buf;
+	  buf->execute();
+	  nFrames = max(nFrames, buf->size());
+	}
       }
 
-      auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out) :
-	make_shared<WavWriter<int32_t>>(dstFormat, dstContainer, nFramesForStdout, out);
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out, 0) :
+	make_shared<WavWriter<int32_t>>("", dstFormat, dstContainer, out, nFrames);
 
       writer->execute();
     }
@@ -435,7 +494,7 @@ int main(int argc, char **argv) {
 
   string srcfn, dstfn, profileName = "standard", dstContainerName = "";
   int64_t rate = -1, bits = 16, dither = -1, pdf = 0;
-  uint64_t seed = ~0ULL;
+  uint64_t seed = ~0ULL, dstChannelMask = ~0ULL;
   double att = 0, peak = 1.0;
   bool quiet = false, debug = false;
 
@@ -556,6 +615,13 @@ int main(int argc, char **argv) {
       if (p == argv[nextArg+1] || *p)
 	showUsage(argv[0], "A positive integer is expected after --seed.");
       nextArg++;
+    } else if (string(argv[nextArg]) == "--channelMask") {
+      if (nextArg+1 >= argc) showUsage(argv[0]);
+      char *p;
+      dstChannelMask = strtoul(argv[nextArg+1], &p, 0);
+      if (p == argv[nextArg+1] || *p)
+	showUsage(argv[0], "A positive integer is expected after --channelMask.");
+      nextArg++;
     } else if (string(argv[nextArg]) == "--tmpfile") {
       showUsage(argv[0], "--tmpfile option is no longer available.");
     } else if (string(argv[nextArg]) == "--twopass") {
@@ -585,8 +651,6 @@ int main(int argc, char **argv) {
     } else {
       showUsage(argv[0], "Specify a destination file name.");
     }
-  } else if (!quiet && dst == STDOUT) {
-    cerr << "Warning : --stdout is an experimental feature. The output does not fully comply to the WAV specification." << endl;
   }
 
   if (nextArg != argc) showUsage(argv[0], "Extra arguments after the destination file name.");
@@ -616,14 +680,14 @@ int main(int argc, char **argv) {
   try {
     if (!profile.doublePrecision) {
       Pipeline<float> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
-			       rate, bits, dither, pdf,
+			       dstChannelMask, rate, bits, dither, pdf,
 			       seed, att, peak, quiet, debug,
 			       src, dst, impulsePeriod, sweepLength,
 			       sweepStart, sweepEnd, generatorFs, profile);
       pipeline.execute();
     } else {
       Pipeline<double> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
-				rate, bits, dither, pdf,
+				dstChannelMask, rate, bits, dither, pdf,
 				seed, att, peak, quiet, debug,
 				src, dst, impulsePeriod, sweepLength,
 				sweepStart, sweepEnd, generatorFs, profile);

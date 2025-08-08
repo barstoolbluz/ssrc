@@ -76,7 +76,6 @@ namespace ssrc {
   public:
     virtual ~StageOutlet() = default;
     virtual bool atEnd() = 0;
-    virtual bool available() { return !atEnd(); }
 
     /**
      * Returns 0 only when EOF.
@@ -120,8 +119,7 @@ namespace ssrc {
   class WavReader : public OutletProvider<T> {
   public:
     class WavReaderImpl;
-    WavReader(const char *filename);
-    WavReader(const std::string &filename) : WavReader(filename.c_str()) {}
+    WavReader(const std::string &filename);
     WavReader();
     ~WavReader();
     std::shared_ptr<StageOutlet<T>> getOutlet(uint32_t channel);
@@ -135,13 +133,8 @@ namespace ssrc {
   class WavWriter {
   public:
     class WavWriterImpl;
-    WavWriter(const char *filename, const WavFormat& fmt, const ContainerFormat& cont_,
-	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_);
     WavWriter(const std::string &filename, const WavFormat& fmt, const ContainerFormat& cont_,
-	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_) :
-      WavWriter(filename.c_str(), fmt, cont_, in_) {}
-    WavWriter(const WavFormat& fmt, const ContainerFormat& cont_, uint64_t nFrames,
-	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_);
+	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_, uint64_t nFrames = 0);
     ~WavWriter();
     void execute();
   private:

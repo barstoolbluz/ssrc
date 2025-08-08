@@ -231,21 +231,30 @@ namespace dr_wav {
 	throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
     }
 
-    WavFile(const std::string &filename, const drwav_fmt &fmt, const Container& container) {
+    WavFile(const std::string &filename, const drwav_fmt &fmt, const Container& container, uint64_t totalPCMFrameCount = 0) {
       memset(&wav, 0, sizeof(wav));
       switch(fmt.formatTag) {
       case Format::PCM:
       case Format::IEEE_FLOAT:
 	{
 	  drwav_data_format df = DataFormat(fmt, container).getContent();
-	  if (!drwav_init_file_write(&wav, filename.c_str(), &df, NULL))
-	    throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
+	  if (totalPCMFrameCount == 0) {
+	    if (!drwav_init_file_write(&wav, filename.c_str(), &df, NULL))
+	      throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
+	  } else {
+	    if (!drwav_init_write_sequential_pcm_frames(&wav, &df, totalPCMFrameCount, on_write, stdout, NULL))
+	      throw(std::runtime_error("WavFile::WavFile Could not open STDOUT for writing"));
+	  }
 	}
 	break;
       case Format::EXTENSIBLE:
 	{
-	  fp = fopen(filename.c_str(), "wb");
-	  if (!fp) throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
+	  if (totalPCMFrameCount == 0) {
+	    fp = fopen(filename.c_str(), "wb");
+	    if (!fp) throw(std::runtime_error(("WavFile::WavFile Could not open " + filename + " for writing").c_str()));
+	  } else {
+	    fp = nullptr;
+	  }
 	  const drwav_data_format df = DataFormat(fmt, container).getContent();
 
 	  uint8_t extraData[22];
@@ -254,8 +263,13 @@ namespace dr_wav {
 	  memcpy(&extraData[2], &fmt.channelMask, sizeof(uint32_t));
 	  memcpy(&extraData[6], fmt.subFormat, 16);
 
-	  if (!drwav_init_write_with_extraData(&wav, &df, on_write, on_seek, fp, nullptr, (const void *)&extraData))
-	    throw(std::runtime_error("WavFile::WavFile Could not init drwav for writing"));
+	  if (totalPCMFrameCount == 0) {
+	    if (!drwav_init_write_with_extraData(&wav, &df, on_write, on_seek, fp, nullptr, (const void *)&extraData))
+	      throw(std::runtime_error("WavFile::WavFile Could not init drwav for writing"));
+	  } else {
+	    if (!drwav_init_write_sequential_with_extraData(&wav, &df, totalPCMFrameCount * fmt.channels, on_write, stdout, nullptr, (const void *)&extraData))
+	      throw(std::runtime_error("WavFile::WavFile Could not init drwav for writing"));
+	  }
 	}
 	break;
       default:
