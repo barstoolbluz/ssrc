@@ -1,6 +1,6 @@
 # SSRC API Documentation
 
-This document provides documentation for both the SSRC command-line tool and its underlying C++ library, `libshibatch`.
+This document provides documentation for both the SSRC command-line tool and its underlying C++ library, `libshibatchsrc`.
 
 ## 1. Command-Line Tool (`ssrc`)
 
@@ -63,9 +63,9 @@ Convert a 44.1kHz, 16-bit WAV file to a 96kHz, 24-bit WAV file using a high-qual
 ssrc --rate 96000 --profile high --bits 24 --dither 0 "path/to/input.wav" "path/to/output.wav"
 ```
 
-## 2. C++ Library API (`libshibatch`)
+## 2. C++ Library API (`libshibatchsrc`)
 
-The `ssrc` tool is built on top of the `libshibatch` C++ library. You can use this library directly in your own projects to perform sample rate conversion without shelling out to an external command. The library is header-only and uses templates to support both single-precision (`float`) and double-precision (`double`) processing.
+The `ssrc` tool is built on top of the `libshibatchsrc` C++ library. You can use this library directly in your own projects to perform sample rate conversion without shelling out to an external command. The library is header-only and uses templates to support both single-precision (`float`) and double-precision (`double`) processing.
 
 ### 2.1. Core Concept: The Processing Pipeline
 
@@ -182,9 +182,6 @@ Here is a complete example that ties everything together. It reads a WAV file, r
 #include <memory>
 #include "shibatch/ssrc.hpp"
 
-// For simplicity, this example does not include dithering.
-// See src/cli/cli.cpp for a more advanced example with dithering.
-
 void convert_file(const std::string& in_path, const std::string& out_path) {
     try {
         // 1. Set up the reader for single-precision floats
@@ -226,20 +223,28 @@ void convert_file(const std::string& in_path, const std::string& out_path) {
 }
 
 int main() {
-    // Note: You need to link against the library or include the source files.
-    // This example assumes you have a file named "input_44100.wav".
-    // convert_file("input_44100.wav", "output_96000.wav");
+  if (argc == 3) {
+    convert_file(argv[1], argv[2]);
     return 0;
+  }
+
+  std::cerr << "Usage : " << argv[0] << " <source wav file> <dest wav file>" << std::endl;
+
+  return -1;
 }
 ```
 
 ## 3. Advanced Topics
 
-This section delves deeper into specific components of the `libshibatch` API.
+This section delves deeper into specific components of the `libshibatchsrc` API.
 
 ### 3.1. Dithering with the `Dither` Class
 
-When converting audio from a higher bit depth to a lower bit depth (e.g., from 24-bit to 16-bit), quantization errors can introduce audible artifacts. **Dithering** is the process of adding a small amount of carefully shaped noise before quantization to mask these artifacts and produce a more pleasant, analog-like sound.
+Converting high-resolution audio to a lower bit depth (e.g., 24-bit to 16-bit) involves quantization, where sample values are rounded to the nearest available level. This process creates quantization errors that manifest as distortion correlated with the original signal, which is musically unpleasant, especially on fading reverb tails.
+
+Dithering is a technique that mitigates this by adding a small amount of uncorrelated noise to the signal prior to quantization. This crucial step trades the harsh, signal-correlated distortion for a more benign and constant noise floor.
+
+To take this a step further, noise shaping can be employed. This process intelligently sculpts the noise floor, pushing the noise energy away from the frequency ranges where the human ear is most sensitive (e.g., 2-5 kHz) and into the far less audible, very high frequencies. While this may physically increase the total noise energy in the system, it results in a significantly lower perceived noise level. This combined process preserves low-level detail and the sense of resolution in the final audio.
 
 The `ssrc::Dither` class is a pipeline stage that performs this function. It takes a high-resolution signal as input (e.g., from the `SSRC` stage) and outputs a signal ready for quantization.
 
@@ -336,7 +341,7 @@ This struct specifies the overall file type by defining its main **`ChunkID`**. 
 - `ContainerFormat::AIFF`: Audio Interchange File Format, used by Apple.
 - `ContainerFormat::RIFX`: A big-endian variant of RIFF.
 
-Choosing a 64-bit compatible container like `W64` or `RF64` is essential if your output file might be larger than 4 GB.
+Choosing a 64-bit compatible container like `RF64` or `W64` is essential if your output file might be larger than 4 GB.
 
 #### `ssrc::WavFormat`
 This struct's contents correspond directly to the data stored in a WAV file's **`fmt ` chunk**. It describes the specific properties of the raw audio data itself.
@@ -344,11 +349,11 @@ This struct's contents correspond directly to the data stored in a WAV file's **
 - `formatTag`: The audio codec. Key values are:
     - `WavFormat::PCM`: Standard Pulse Code Modulation.
     - `WavFormat::IEEE_FLOAT`: 32-bit or 64-bit floating-point samples.
-    - `WavFormat::EXTENSIBLE`: A newer format tag used for audio that doesn't fit the classic `PCM` specification, such as multi-channel audio (more than 2 channels) or high bit depths (>16).
+    - `WavFormat::EXTENSIBLE`: A newer format tag used for audio that doesn't fit the classic `PCM` specification, such as multi-channel audio (more than 2 channels).
 - `channels`: Number of audio channels.
 - `sampleRate`: The sample rate in Hz (e.g., 44100).
 - `bitsPerSample`: The bit depth (e.g., 16, 24, 32).
-- `channelMask`: A bitmask specifying the speaker layout for multi-channel audio (e.g., `0x3F` for 5.1 surround). Only used when `formatTag` is `EXTENSIBLE`.
+- `channelMask`: A bitmask specifying the speaker layout for multi-channel audio (e.g., `0x3F` for 5.1 surround, `0x63F` for 7.1 surround). Only used when `formatTag` is `EXTENSIBLE`.
 - `subFormat`: A GUID specifying the sub-format, also used with `EXTENSIBLE`. The library provides constants for PCM and IEEE Float (`KSDATAFORMAT_SUBTYPE_PCM` and `KSDATAFORMAT_SUBTYPE_IEEE_FLOAT`).
 
 **Example: Creating a format for a 5.1 Surround, 24-bit, 48kHz WAV file**
@@ -402,7 +407,7 @@ private:
     std::uniform_real_distribution<double> dist_;
 
 public:
-    MyUniformRNG(uint64_t seed) : engine_(seed), dist_(-1.0, 1.0) {}
+    MyUniformRNG(uint64_t seed = 0) : engine_(seed), dist_(-1.0, 1.0) {}
 
     double nextDouble() override {
         return dist_(engine_);
@@ -448,7 +453,7 @@ These parameters are bundled together in the command-line tool's "profiles". Whe
 
 ### 3.6. Implementing Custom Processing Stages with `StageOutlet`
 
-The entire `libshibatch` library is built on a simple but powerful design pattern: the **processing pipeline**. Audio data flows from a source, through one or more processing stages, to a destination. Each of these stages is connected by a unified interface: `ssrc::StageOutlet<T>`.
+The entire `libshibatchsrc` library is built on a simple but powerful design pattern: the **processing pipeline**. Audio data flows from a source, through one or more processing stages, to a destination. Each of these stages is connected by a unified interface: `ssrc::StageOutlet<T>`.
 
 This interface is the fundamental building block of the library. `WavReader` is a `StageOutlet`, `SSRC` is a `StageOutlet`, and `Dither` is a `StageOutlet`. By making your own class that implements this interface, you can create custom audio effects, generators, or other processing tools and seamlessly insert them anywhere in the pipeline.
 
