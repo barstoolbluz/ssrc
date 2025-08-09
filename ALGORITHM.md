@@ -60,7 +60,29 @@ The efficacy of this algorithm stems from the complementary strengths of the two
 *   **FIR Filter with Fast Convolution**: This is a standard Finite Impulse Response (FIR) filter implemented using a **fast convolution** algorithm. This technique allows for the efficient application of a very high-order filter, enabling a near-ideal LPF with an extremely sharp transition band and high stopband attenuation. It is perfect for precise frequency separation, serving as the primary anti-imaging (for upsampling) or anti-aliasing (for downsampling) filter.
 *   **Polyphase Filter**: The polyphase structure is inherently optimized for the mechanics of sample rate conversion. While it cannot typically achieve the same extreme filter order as the fast convolution method, it excels at the computational task by efficiently combining the operations of upsampling, filtering, and downsampling.
 
-### 4. The *osm* Parameter and Implementation Constraints
+### 4. Filter Design and Parameters
+
+The quality of the conversion is determined by the design of the two FIR filters. This implementation uses a Kaiser window to design the low-pass filters, guided by a few key parameters. The default values are chosen to provide high-quality audio conversion.
+
+*   **Stopband Attenuation (`aa`)**: Defines the minimum attenuation in the stopband. The default is **96 dB**, a common value for high-fidelity audio that effectively eliminates audible artifacts.
+*   **DFT Filter Length (`dftflen`)**: The length of the FIR filter implemented with fast convolution. The default is **4096 taps**. A longer filter allows for a sharper transition band.
+*   **Guard Factor (`guard`)**: A parameter used to adjust the transition band of the polyphase filter. The default is **1**.
+
+#### Polyphase Filter Design
+
+The polyphase filter acts as the first stage in upsampling and the second in downsampling. Its characteristics are defined by the following formulas:
+*   **Transition Band Width**: `(fsos - lfs) / (1.0 + guard)`
+*   **Pass-band Edge Frequency**: `(fsos + (lfs - fsos)/(1.0 + guard)) / 2`
+
+These formulas show how the `guard` parameter helps define the cutoff characteristics relative to the low frequency (`lfs`) and the intermediate frequency (`fsos`).
+
+#### Fast Convolution FIR Filter Design
+
+This filter provides the final, sharp filtering. Its design is based on achieving the target stopband attenuation (`aa`) given its length (`dftflen`).
+1.  First, the required transition band width (`df`) for the filter is calculated based on `aa`, `fsos`, and `dftflen`.
+2.  The pass-band edge frequency is then set to **`lfs / 2 - df`**. This ensures that the filter's transition band starts just below the Nyquist frequency of the lower-rate signal, providing a very sharp cutoff that prevents aliasing (in downsampling) and removes spectral images (in upsampling) with high precision.
+
+### 5. The *osm* Parameter and Implementation Constraints
 
 The intermediate frequency *fsos* is defined by the parameter *osm*, where *fsos* = *hfs* &middot; *osm*. The parameter *osm* is the smallest positive integer (*osm* &ge; 1) that satisfies the following condition:
 
@@ -70,6 +92,6 @@ In simpler terms, this condition ensures that the decimation factor from the con
 
 However, the efficiency of the fast convolution stage degrades as *fsos* (and thus *osm*) increases. To manage this trade-off, this implementation imposes a constraint: **only combinations of *lfs* and *hfs* that result in *osm* &le; 3 are permitted.** This constraint means the converter is not universal; it cannot, in principle, convert between any two arbitrary frequencies. In practice, however, this design choice covers all common sampling frequencies used in audio. It is a trade-off, sacrificing absolute universality for optimized performance in the most common use cases.
 
-### 5. Conclusion
+### 6. Conclusion
 
 This algorithm for rational sample rate conversion strikes a balance between high fidelity and computational efficiency. By employing a multi-stage architecture with two complementary filter implementations (Polyphase and a fast convolution FIR), it decomposes the filtering problem into manageable parts. This design, constrained by the *osm* parameter for practical efficiency, provides a robust and high-quality solution for the most common sample rate conversion tasks in audio engineering.
