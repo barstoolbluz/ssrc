@@ -33,7 +33,7 @@ The goal of upsampling is to interpolate new sample values while suppressing unw
     *   The output of this stage is a signal at the intermediate sampling frequency *fsos* = *hfs* &middot; *osm*.
 
 2.  **Stage 2: Fast Convolution FIR Filter:** The signal at *fsos* is then filtered by a very high-order, sharp FIR low-pass filter.
-    *   This filter is implemented using a **fast convolution** algorithm (e.g., Overlap-Add), which leverages FFTs for efficiency.
+    *   This filter is implemented using a **fast convolution** algorithm, which leverages FFTs for efficiency.
     *   Its purpose is to definitively remove all frequency components above the original signal's Nyquist frequency (*lfs*/2), eliminating any remaining spectral images with near-ideal precision.
 
 3.  **Final Decimation:** The clean signal from Stage 2 is decimated (downsampled) to the target frequency *hfs*.

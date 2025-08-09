@@ -1,5 +1,7 @@
 # SSRC - an audiophile-grade sample rate converter
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shibatch/SSRC)
+
 **You can download Windows binaries from [Releases](https://github.com/shibatch/SSRC/releases) (under Assets)**.
 
 Shibatch Sampling Rate Converter (SSRC) is a fast and high-quality sampling rate converter for PCM WAV files. It is designed to efficiently handle the conversion between commonly used sampling rates such as 44.1kHz and 48kHz while ensuring minimal sound quality degradation.
