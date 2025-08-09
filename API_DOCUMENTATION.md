@@ -246,7 +246,7 @@ Dithering is a technique that mitigates this by adding a small amount of uncorre
 
 To take this a step further, noise shaping can be employed. This process intelligently sculpts the noise floor, pushing the noise energy away from the frequency ranges where the human ear is most sensitive (e.g., 2-5 kHz) and into the far less audible, very high frequencies. While this may physically increase the total noise energy in the system, it results in a significantly lower perceived noise level. This combined process preserves low-level detail and the sense of resolution in the final audio.
 
-The `ssrc::Dither` class is a pipeline stage that performs this function. It takes a high-resolution signal as input (e.g., from the `SSRC` stage) and outputs a signal ready for quantization.
+The `ssrc::Dither` class is a pipeline stage that performs this function. It takes a high-resolution signal as input (e.g., from the `SSRC` stage) and outputs a quantized signal.
 
 **Pipeline with Dither:**
 

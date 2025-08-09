@@ -410,7 +410,10 @@ struct Pipeline {
       cerr << endl;
 
       cerr << "dither = "       << dither << endl;
-      cerr << "shaperid = "     << shaperid << endl;
+      cerr << "shaperid = "     << shaperid;
+      if (shaperid != -1) cerr << " (fs = " << noiseShaperCoef[shaperid].fs <<
+			    ", name = " << noiseShaperCoef[shaperid].name << ")";
+      cerr << endl;
       cerr << "pdf = "          << pdf << endl;
       cerr << "peak = "         << peak << endl;
       cerr << endl;

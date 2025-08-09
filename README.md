@@ -62,7 +62,11 @@ ssrc [options] input.wav output.wav
 |                            | `help`: Show all available profile options                                                     |
 | `--dstContainer <type>`    | Specify a container type:                                                                      |
 |                            | `riff`: This is the most common container type                                                 |
+|                            | `rf64`: A 64-bit extension of RIFF                                                             |
 |                            | `help`: Show all available container options                                                   |
+| `--quiet`                  | Suppress informational messages                                                                |
+| `--debug`                  | Print debugging information                                                                    |
+
 
 #### Example
 
