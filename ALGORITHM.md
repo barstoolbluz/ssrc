@@ -62,25 +62,25 @@ The efficacy of this algorithm stems from the complementary strengths of the two
 
 ### 4. Filter Design and Parameters
 
-The quality of the conversion is determined by the design of the two FIR filters. This implementation uses a Kaiser window to design the low-pass filters, guided by a few key parameters. The default values are chosen to provide high-quality audio conversion.
+The quality of the conversion is determined by the design of the two FIR filters. This implementation uses a Kaiser window to design the low-pass filters, guided by a few key parameters. The default values are selected to achieve a good balance between audio conversion quality and conversion speed.
 
-*   **Stopband Attenuation (`aa`)**: Defines the minimum attenuation in the stopband. The default is **96 dB**, a common value for high-fidelity audio that effectively eliminates audible artifacts.
-*   **DFT Filter Length (`dftflen`)**: The length of the FIR filter implemented with fast convolution. The default is **4096 taps**. A longer filter allows for a sharper transition band.
-*   **Guard Factor (`guard`)**: A parameter used to adjust the transition band of the polyphase filter. The default is **1**.
+*   Stopband Attenuation (*aa*): Defines the attenuation in the stopband. The default value is 96 dB, which is sufficient for converting 16-bit PCM data.
+*   DFT Filter Length (*dftflen*): The length of the FIR filter implemented with fast convolution. The default is 4096 taps. A longer filter allows for a sharper transition band.
+*   Guard Factor (*guard*): A parameter used to adjust the transition band of the polyphase filter. The default is 1.
 
 #### Polyphase Filter Design
 
 The polyphase filter acts as the first stage in upsampling and the second in downsampling. Its characteristics are defined by the following formulas:
-*   **Transition Band Width**: `(fsos - lfs) / (1.0 + guard)`
-*   **Pass-band Edge Frequency**: `(fsos + (lfs - fsos)/(1.0 + guard)) / 2`
+*   **Transition Band Width**: (*fsos* - *lfs*) / (1.0 + *guard*)
+*   **Pass-band Edge Frequency**: (*fsos* + (*lfs* - *fsos*)/(1.0 + *guard*)) / 2
 
-These formulas show how the `guard` parameter helps define the cutoff characteristics relative to the low frequency (`lfs`) and the intermediate frequency (`fsos`).
+These formulas show how the *guard* parameter helps define the cutoff characteristics relative to the low frequency (*lfs*) and the intermediate frequency (*fsos*).
 
 #### Fast Convolution FIR Filter Design
 
-This filter provides the final, sharp filtering. Its design is based on achieving the target stopband attenuation (`aa`) given its length (`dftflen`).
-1.  First, the required transition band width (`df`) for the filter is calculated based on `aa`, `fsos`, and `dftflen`.
-2.  The pass-band edge frequency is then set to **`lfs / 2 - df`**. This ensures that the filter's transition band starts just below the Nyquist frequency of the lower-rate signal, providing a very sharp cutoff that prevents aliasing (in downsampling) and removes spectral images (in upsampling) with high precision.
+This filter provides the final, sharp filtering. Its design is based on achieving the target stopband attenuation (*aa*) given its length (*dftflen*).
+1.  First, the required transition band width (*df*) for the filter is calculated based on *aa*, *fsos*, and *dftflen*.
+2.  The pass-band edge frequency is then set to (*lfs* / 2 - *df*). This ensures that the filter's transition band starts just below the Nyquist frequency of the lower-rate signal, providing a very sharp cutoff that prevents aliasing (in downsampling) and removes spectral images (in upsampling) with high precision.
 
 ### 5. The *osm* Parameter and Implementation Constraints
 
