@@ -17,6 +17,8 @@ namespace shibatch {
   class Soxifier : OutletProvider<INTYPE> {
     class Outlet : public StageOutlet<INTYPE> {
       Soxifier &parent;
+      mutex mtx;
+      condition_variable condVar;
       const uint32_t ch;
       shared_ptr<thread> th;
       ArrayQueue<INTYPE> inQueue, outQueue;
@@ -28,7 +30,7 @@ namespace shibatch {
 	  size_t z = parent.tail[ch]->read(buf.data(), parent.N);
 	  if (z == 0) break;
 
-	  unique_lock lock(parent.mtx);
+	  unique_lock lock(mtx);
 	  outQueue.write(buf.data(), z);
 	}
 
@@ -40,20 +42,18 @@ namespace shibatch {
       ~Outlet() {}
 
       bool atEnd() {
-	unique_lock lock(parent.mtx);
+	unique_lock lock(mtx);
 	return inQueue.size() == 0 && parent.isDraining();
       }
 
       size_t read(INTYPE *ptr, size_t n) {
-	unique_lock lock(parent.mtx);
+	unique_lock lock(mtx);
 
-	while(!(inQueue.size() != 0 || parent.isDraining())) {
-	  parent.condVar.wait(lock);
-	}
+	while(!(inQueue.size() != 0 || parent.isDraining())) condVar.wait(lock);
 
 	size_t z = inQueue.read(ptr, min(n, inQueue.size()));
 
-	if (inQueue.size() == 0) parent.condVar.notify_all();
+	if (inQueue.size() == 0) condVar.notify_all();
 
 	return z;
       }
@@ -67,8 +67,6 @@ namespace shibatch {
 
     const unsigned nch;
     const size_t N;
-    mutex mtx;
-    condition_variable condVar;
     bool shuttingDown = false;
 
     WavFormat format;
@@ -76,15 +74,18 @@ namespace shibatch {
     vector<shared_ptr<StageOutlet<OUTTYPE>>> tail;
 
     size_t collectOutput(OUTTYPE *obuf, size_t z) {
-      unique_lock lock(mtx);
-
-      for(unsigned ch=0;ch<nch;ch++)
+      for(unsigned ch=0;ch<nch;ch++) {
+	unique_lock lock(outlet[ch]->mtx);
 	z = min(z, outlet[ch]->outQueue.size());
+      }
 
       vector<OUTTYPE> buf(z);
 
       for(unsigned ch=0;ch<nch;ch++) {
-	outlet[ch]->outQueue.read(buf.data(), z);
+	{
+	  unique_lock lock(outlet[ch]->mtx);
+	  outlet[ch]->outQueue.read(buf.data(), z);
+	}
 	for(size_t i=0;i<z;i++)
 	  obuf[i * nch + ch] = buf[i];
       }
@@ -102,9 +103,12 @@ namespace shibatch {
 
     ~Soxifier() {
       {
-	unique_lock lock(mtx);
 	shuttingDown = true;
-	condVar.notify_all();
+
+	for(unsigned c=0;c<nch;c++) {
+	  unique_lock lock(outlet[c]->mtx);
+	  outlet[c]->condVar.notify_all();
+	}
       }
 
       for(unsigned ch=0;ch<nch;ch++) {
@@ -161,25 +165,14 @@ namespace shibatch {
 	vector<INTYPE> v(ilen);
 	for(size_t i=0;i<ilen;i++) v[i] = ibuf[i * nch + c];
 
-	unique_lock lock(mtx);
-	outlet[c]->inQueue.write(move(v));
+	unique_lock lock(outlet[c]->mtx);
+	outlet[c]->inQueue.write(std::move(v));
+	outlet[c]->condVar.notify_all();
       }
 
-      if (ilen > 0) {
-	unique_lock lock(mtx);
-	condVar.notify_all();
-      }
-
-      for(;;) {
-	unique_lock lock(mtx);
-
-	bool finished = true;
-	for(unsigned c=0;c<nch;c++) {
-	  if (outlet[c]->inQueue.size() != 0) finished = false;
-	}
-	if (finished) break;
-
-	condVar.wait(lock);
+      for(unsigned c=0;c<nch;c++) {
+	unique_lock lock(outlet[c]->mtx);
+	while(outlet[c]->inQueue.size() != 0) outlet[c]->condVar.wait(lock);
       }
 
       {
@@ -196,6 +189,11 @@ namespace shibatch {
 
       state = DRAINING;
 
+      for(unsigned c=0;c<nch;c++) {
+	unique_lock lock(outlet[c]->mtx);
+	outlet[c]->condVar.notify_all();
+      }
+
       size_t z = 0;
       flow(nullptr, obuf, &z, osamp);
     }
@@ -205,8 +203,10 @@ namespace shibatch {
 
       state = STOPPED;
 
-      unique_lock lock(mtx);
-      condVar.notify_all();
+      for(unsigned c=0;c<nch;c++) {
+	unique_lock lock(outlet[c]->mtx);
+	outlet[c]->condVar.notify_all();
+      }
     }
   };
 
