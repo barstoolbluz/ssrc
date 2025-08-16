@@ -99,8 +99,6 @@ namespace shibatch {
 
 	memset(dftbuf + nRead, 0, (dftlen - nRead) * sizeof(REAL));
 
-	//xassert(!endReached || nRead != dftleno2, "DFTFilter::read !endReached || nRead != dftleno2");
-
 	//
 
 	SleefDFT_execute(dftf, dftbuf, dftbuf);

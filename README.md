@@ -1,4 +1,4 @@
-# SSRC - an audiophile-grade sample rate converter
+# SSRC - An audiophile-grade sample rate converter
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shibatch/SSRC)
 

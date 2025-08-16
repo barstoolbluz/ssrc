@@ -5,9 +5,9 @@
 #include <memory>
 #include <vector>
 #include <deque>
-#include <mutex>
 
 #include "shibatch/ssrc.hpp"
+#include "ArrayQueue.hpp"
 #include "dr_wav.hpp"
 
 template<typename T> class ssrc::WavReader<T>::WavReaderImpl {
@@ -21,14 +21,7 @@ namespace shibatch {
     class WavOutlet : public ssrc::StageOutlet<T> {
       WavReaderStage &reader;
       const uint32_t ch;
-      std::deque<std::vector<T>> queue;
-      size_t pos = 0;
-
-      size_t nSamplesInQueue() {
-	size_t ret = 0;
-	for(auto v : queue) ret += v.size();
-	return ret - pos;
-      }
+      ArrayQueue<T> queue;
 
     public:
       WavOutlet(WavReaderStage &reader_, int ch_) : reader(reader_), ch(ch_) {}
@@ -36,28 +29,13 @@ namespace shibatch {
       bool atEnd() { return queue.size() == 0 && reader.atEnd(); }
 
       size_t read(T *ptr, size_t n) {
-	std::unique_lock<std::mutex> lock(reader.mtx);
-
-	size_t s = nSamplesInQueue();
+	size_t s = queue.size();
 
 	if (s < n) s += reader.refill(n - s);
 
 	if (s > n) s = n;
 
-	for(size_t r = s;r > 0;) {
-	  size_t cs = std::min(queue.front().size() - pos, r);
-	  //xassert(cs != 0, "WaveOutlet::read");
-	  memcpy(ptr, queue.front().data() + pos, cs * sizeof(T));
-	  pos += cs;
-	  ptr += cs;
-	  r -= cs;
-	  if (pos >= queue.front().size()) {
-	    queue.pop_front();
-	    pos = 0;
-	  }
-	}
-
-	return s;
+	return queue.read(ptr, s);
       }
 
       friend WavReaderStage;
@@ -65,7 +43,6 @@ namespace shibatch {
 
     dr_wav::WavFile wav;
     std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> outlet;
-    std::mutex mtx;
     std::vector<T> buf;
 
     size_t refill(size_t n) {
@@ -76,11 +53,9 @@ namespace shibatch {
       for(unsigned c=0;c<nc;c++) {
 	auto o = std::dynamic_pointer_cast<WavOutlet>(outlet[c]);
 
-	o->queue.push_back(std::vector<T>());
-	std::vector<T> &le = o->queue.back();
-
-	le.resize(z);
-	for(size_t i=0;i<z;i++) le[i] = buf[i * nc + c];
+	std::vector<T> v(z);
+	for(size_t i=0;i<z;i++) v[i] = buf[i * nc + c];
+	o->queue.write(std::move(v));
       }
 
       return z;
