@@ -31,6 +31,8 @@ namespace shibatch {
 	  unique_lock lock(parent.mtx);
 	  outQueue.write(buf.data(), z);
 	}
+
+	while(parent.tail[ch]->read(buf.data(), parent.N)) ;
       }
 
     public:
@@ -44,8 +46,6 @@ namespace shibatch {
 
       size_t read(INTYPE *ptr, size_t n) {
 	unique_lock lock(parent.mtx);
-
-	parent.condVar.notify_all();
 
 	while(!(inQueue.size() != 0 || parent.isDraining())) {
 	  parent.condVar.wait(lock);
@@ -165,16 +165,21 @@ namespace shibatch {
 	outlet[c]->inQueue.write(move(v));
       }
 
-      for(;;) {
+      if (ilen > 0) {
 	unique_lock lock(mtx);
 	condVar.notify_all();
-	condVar.wait(lock);
+      }
+
+      for(;;) {
+	unique_lock lock(mtx);
 
 	bool finished = true;
 	for(unsigned c=0;c<nch;c++) {
 	  if (outlet[c]->inQueue.size() != 0) finished = false;
 	}
 	if (finished) break;
+
+	condVar.wait(lock);
       }
 
       {
@@ -273,7 +278,7 @@ struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsign
   vector<shared_ptr<StageOutlet<float>>> out(num_channels);
 
   for(unsigned i=0;i<num_channels;i++) {
-    out[i] = make_shared<SSRC<float>>(xifier->getOutlet(i), input_rate, output_rate);
+    out[i] = make_shared<SSRC<float>>(xifier->getOutlet(i), input_rate, output_rate, 14, 145, 2);
   }
 
   xifier->clamp(out);
