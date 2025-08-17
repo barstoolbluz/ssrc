@@ -95,7 +95,19 @@ Convert a WAV file from 44.1kHz to 48kHz with dithering:
 ssrc --rate 48000 --dither 0 input.wav output.wav
 ```
 
-## How to build
+## For Developers (Library Usage)
+
+In addition to the command-line tool, SSRC provides powerful C++ and C APIs, allowing you to integrate the resampling engine directly into your own projects. It can be built as a static or shared library for native applications on Windows (without requiring MSYS/Cygwin), Linux, and other platforms.
+
+For detailed information on the API, please see [**API_DOCUMENTATION.md**](API_DOCUMENTATION.md).
+
+### C++ API (`ssrc.hpp`)
+A modern, header-only C++17 API that uses templates and standard library features for flexible and type-safe audio processing pipelines.
+
+### C API (`ssrcsoxr.h`)
+A stable C-language API that is compatible with the popular SoX Resampler library (`libsoxr`). By defining `SSRC_LIBSOXR_EMULATION`, SSRC can serve as a drop-in replacement for `soxr` in existing projects.
+
+### How to Build the Library
 
 1. Clone the repository:
     ```bash
