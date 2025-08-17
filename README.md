@@ -12,8 +12,8 @@ Shibatch Sampling Rate Converter (SSRC) is a fast and high-quality sampling rate
 
 - **High-Quality Conversion**: Achieves excellent audio quality with minimal artifacts.
 - **FFT-Based Algorithm**: Utilizes a unique FFT-based algorithm for precise and efficient sampling rate conversion.
-- **SleefDFT Integration**: Leverages SleefDFT, a product of the [SLEEF Project](https://sleef.org/), for fast Fourier transforms (FFT), enabling high-speed conversions.
-- **SIMD Optimization**: Takes advantage of SIMD (Single Instruction, Multiple Data) techniques for accelerated processing.
+- **SleefDFT Integration**: Leverages [SleefDFT](https://sleef.org/dft.xhtml), a product of the [SLEEF Project](https://sleef.org/), for fast Fourier transforms (FFT), enabling high-speed conversions.
+- **SIMD Optimization**: Takes advantage of SIMD (Single Instruction, Multiple Data) techniques for accelerated processing. It is capable of high-speed conversion using [AVX-512](https://en.wikipedia.org/wiki/AVX-512).
 - **Dithering Functionality**: Supports various dithering techniques, including noise shaping based on the absolute threshold of hearing (ATH) curve.
 - **Specialized Filters**: Implements high-order filters to address the challenges of converting between 44.1kHz and 48kHz.
 - **Selectable Conversion Profile**: You can select the filter lengths and computing precision. Single-precision computation is generally sufficient for audio processing, and even the standard profile allows for highly accurate conversion. However, since this tool is designed for audiophiles, you can also select a profile that performs all computation in double precision.
@@ -82,7 +82,7 @@ Profiles allow you to balance between conversion speed and quality (stop-band at
 | `high`       | 65536      | 170 dB      | double    | Excellent quality for audiophiles.     |
 | `standard`   | 16384      | 145 dB      | single    | Great quality, default setting.        |
 | `fast`       | 1024       | 96 dB       | single    | Good quality, suitable for most uses.  |
-| `lightning`  | 256        | 96 dB       | single    | Fastest option, for quick previews.    |
+| `lightning`  | 256        | 96 dB       | single    | Low latency, suitable for real-time uses. |
 
 You can see all profiles and their technical details by running `ssrc --profile help`.
 
