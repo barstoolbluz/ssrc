@@ -4,6 +4,8 @@
 
 **You can download Windows binaries from [Releases](https://github.com/shibatch/SSRC/releases) (under Assets)**.
 
+**If you have any thoughts or comments about this project, feel free to post them in [Discussions](https://github.com/shibatch/SSRC/discussions)**.
+
 Shibatch Sampling Rate Converter (SSRC) is a fast and high-quality sampling rate converter for PCM WAV files. It is designed to efficiently handle the conversion between commonly used sampling rates such as 44.1kHz and 48kHz while ensuring minimal sound quality degradation.
 
 ## Features
@@ -39,35 +41,50 @@ See [here](http://shibatch.github.io/ssrc) for some experimental results.
 
 ### Usage
 
-Basic command:
+The basic command structure is as follows:
 
 ```bash
-ssrc [options] input.wav output.wav
+ssrc [options] <source_file.wav> <destination_file.wav>
+```
+
+You can also use standard input and output:
+
+```bash
+cat input.wav | ssrc --stdin [options] --stdout > output.wav
 ```
 
 #### Options
 
 | Option                     | Description                                                                                    |
 |----------------------------|------------------------------------------------------------------------------------------------|
-| `--rate <sampling rate>`   | Specify the output sampling rate in Hz.                                                        |
-| `--att <attenuation>`      | Attenuate the output in decibels (dB).                                                         |
-| `--bits <number of bits>`  | Specify the output quantization bit length. Use `-32` for IEEE 32-bit floating-point WAV files.|
-| `--dither <type>`          | Select a dithering type:                                                                       |
-|                            | `0`: Low intensity ATH-based noise shaping                                                     |
-|                            | `98`: Triangular noise shaping                                                                 |
-|                            | `help`: Show all available options for dithering                                               |
-| `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering:                                |
-|                            | `0`: Rectangular                                                                               |
-|                            | `1`: Triangular                                                                                |
-| `--profile <type>`         | Specify a conversion profile:                                                                  |
-|                            | `fast`: This setting is enough for almost every purpose                                        |
-|                            | `help`: Show all available profile options                                                     |
-| `--dstContainer <type>`    | Specify a container type:                                                                      |
-|                            | `riff`: This is the most common container type                                                 |
-|                            | `rf64`: A 64-bit extension of RIFF                                                             |
-|                            | `help`: Show all available container options                                                   |
-| `--quiet`                  | Suppress informational messages                                                                |
-| `--debug`                  | Print debugging information                                                                    |
+| `--rate <sampling rate>`   | **Required**. Specify the output sampling rate in Hz. Example: `48000`.                        |
+| `--att <attenuation>`      | Attenuate the output signal in decibels (dB). Default: `0`.                                    |
+| `--bits <number of bits>`  | Specify the output quantization bit depth. Common values are `16`, `24`, `32`. Use `-32` or `-64` for 32-bit or 64-bit IEEE floating-point output. Default: `16`. |
+| `--dither <type>`          | Select a dithering/noise shaping algorithm by ID. Use `--dither help` to see all available types for different sample rates. |
+| `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering. `0`: Rectangular, `1`: Triangular. Default: `0`. |
+| `--profile <name>`         | Select a conversion quality/speed profile. Use `--profile help` for details. Default: `standard`. |
+| `--dstContainer <name>`    | Specify the output file container type (`riff`, `w64`, `rf64`, etc.). Use `--dstContainer help` for options. Defaults to the source container or `riff`. |
+| `--genImpulse ...`         | For testing. Generate an impulse signal instead of reading a file.                             |
+| `--genSweep ...`           | For testing. Generate a sweep signal instead of reading a file.                                |
+| `--stdin`                  | Read audio data from standard input.                                                           |
+| `--stdout`                 | Write audio data to standard output.                                                           |
+| `--quiet`                  | Suppress informational messages.                                                               |
+| `--debug`                  | Print detailed debugging information during processing.                                        |
+| `--seed <number>`          | Set the random seed for dithering to ensure reproducible results.                              |
+
+#### Conversion Profiles
+
+Profiles allow you to balance between conversion speed and quality (stop-band attenuation and filter length).
+
+| Profile Name | FFT Length | Attenuation | Precision | Use Case                               |
+|--------------|------------|-------------|-----------|----------------------------------------|
+| `insane`     | 262144     | 200 dB      | double    | Highest possible quality, very slow.   |
+| `high`       | 65536      | 170 dB      | double    | Excellent quality for audiophiles.     |
+| `standard`   | 16384      | 145 dB      | single    | Great quality, default setting.        |
+| `fast`       | 1024       | 96 dB       | single    | Good quality, suitable for most uses.  |
+| `lightning`  | 256        | 96 dB       | single    | Fastest option, for quick previews.    |
+
+You can see all profiles and their technical details by running `ssrc --profile help`.
 
 
 #### Example

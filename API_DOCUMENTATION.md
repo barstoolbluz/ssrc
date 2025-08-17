@@ -1,73 +1,10 @@
 # SSRC API Documentation
 
-This document provides documentation for both the SSRC command-line tool and its underlying C++ library, `libshibatchsrc`.
-
-## 1. Command-Line Tool (`ssrc`)
-
-The `ssrc` executable is a powerful command-line tool for high-quality sample rate conversion of WAV files.
-
-### 1.1. Basic Usage
-
-The basic command structure is as follows:
-
-```bash
-ssrc [options] <source_file.wav> <destination_file.wav>
-```
-
-You can also use standard input and output:
-
-```bash
-cat input.wav | ssrc --stdin [options] --stdout > output.wav
-```
-
-### 1.2. Options
-
-The tool offers several options to control the conversion process:
-
-| Option                     | Description                                                                                    |
-|----------------------------|------------------------------------------------------------------------------------------------|
-| `--rate <sampling rate>`   | **Required**. Specify the output sampling rate in Hz. Example: `48000`.                        |
-| `--att <attenuation>`      | Attenuate the output signal in decibels (dB). Default: `0`.                                    |
-| `--bits <number of bits>`  | Specify the output quantization bit depth. Common values are `16`, `24`, `32`. Use `-32` or `-64` for 32-bit or 64-bit IEEE floating-point output. Default: `16`. |
-| `--dither <type>`          | Select a dithering/noise shaping algorithm by ID. Use `--dither help` to see all available types for different sample rates. |
-| `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering. `0`: Rectangular, `1`: Triangular. Default: `0`. |
-| `--profile <name>`         | Select a conversion quality/speed profile. Use `--profile help` for details. Default: `standard`. |
-| `--dstContainer <name>`    | Specify the output file container type (`riff`, `w64`, `rf64`, etc.). Use `--dstContainer help` for options. Defaults to the source container or `riff`. |
-| `--genImpulse ...`         | For testing. Generate an impulse signal instead of reading a file.                             |
-| `--genSweep ...`           | For testing. Generate a sweep signal instead of reading a file.                                |
-| `--stdin`                  | Read audio data from standard input.                                                           |
-| `--stdout`                 | Write audio data to standard output.                                                           |
-| `--quiet`                  | Suppress informational messages.                                                               |
-| `--debug`                  | Print detailed debugging information during processing.                                        |
-| `--seed <number>`          | Set the random seed for dithering to ensure reproducible results.                              |
-
-### 1.3. Conversion Profiles
-
-Profiles allow you to balance between conversion speed and quality (stop-band attenuation and filter length).
-
-| Profile Name | FFT Length | Attenuation | Precision | Use Case                               |
-|--------------|------------|-------------|-----------|----------------------------------------|
-| `insane`     | 262144     | 200 dB      | double    | Highest possible quality, very slow.   |
-| `high`       | 65536      | 170 dB      | double    | Excellent quality for audiophiles.     |
-| `standard`   | 16384      | 145 dB      | single    | Great quality, default setting.        |
-| `fast`       | 1024       | 96 dB       | single    | Good quality, suitable for most uses.  |
-| `lightning`  | 256        | 96 dB       | single    | Fastest option, for quick previews.    |
-
-You can see all profiles and their technical details by running `ssrc --profile help`.
-
-### 1.4. Example
-
-Convert a 44.1kHz, 16-bit WAV file to a 96kHz, 24-bit WAV file using a high-quality profile and dithering.
-
-```bash
-ssrc --rate 96000 --profile high --bits 24 --dither 0 "path/to/input.wav" "path/to/output.wav"
-```
-
-## 2. C++ Library API (`libshibatchsrc`)
+## 1. C++ Library API (`libshibatchsrc`)
 
 The `ssrc` tool is built on top of the `libshibatchsrc` C++ library. You can use this library directly in your own projects to perform sample rate conversion without shelling out to an external command. The library is header-only and uses templates to support both single-precision (`float`) and double-precision (`double`) processing.
 
-### 2.1. Core Concept: The Processing Pipeline
+### 1.1. Core Concept: The Processing Pipeline
 
 The library is designed around a pipeline concept. Audio data flows through a series of processing stages. The core abstraction is `ssrc::StageOutlet<T>`, an abstract class that represents a source of audio data that can be read from.
 
@@ -80,7 +17,7 @@ The typical pipeline looks like this:
 -   **`Dither`**: Takes the `SSRC`'s output and applies dithering. It is also a `StageOutlet`.
 -   **`WavWriter`**: Takes one or more final `StageOutlet`s and writes the data to a `.wav` file.
 
-### 2.2. Pipeline Topology and Data Flow
+### 1.2. Pipeline Topology and Data Flow
 
 A key detail of the implementation, as seen in `src/cli/cli.cpp`, is that the pipeline **branches** after the `WavReader` to process each audio channel in parallel. A separate `SSRC` (and `Dither`, if used) instance is created for each channel. The `WavWriter` is then responsible for **merging** these parallel streams back into a single, interleaved audio file.
 
@@ -110,7 +47,7 @@ The data type of the samples flowing through the pipeline also follows a specifi
 2.  **Conversion to Integer**: If dithering is used, the `Dither` stage is responsible for converting the high-precision floating-point signal into an integer signal.
 3.  **Unified Integer Type (`int32_t`)**: Crucially, the `Dither` stage always outputs `int32_t`, regardless of the final target bit depth (e.g., 16-bit or 24-bit). This simplifies the design, as any downstream stages (like the `WavWriter`) only need to handle a single, universal integer type. The `WavWriter` is then responsible for taking the `int32_t` data and correctly writing it to the file with the specified final bit depth.
 
-### 2.3. Key Classes
+### 1.3. Key Classes
 
 All necessary classes are available by including one header:
 ```cpp
@@ -172,7 +109,7 @@ ssrc::WavWriter<float> writer("output.wav", dstFormat, dstContainer, outlets);
 writer.execute();
 ```
 
-### 2.4. Complete Example
+### 1.4. Complete Example
 
 Here is a complete example that ties everything together. It reads a WAV file, resamples all its channels from 44.1kHz to 96kHz using single-precision floats, and saves the result as a 24-bit PCM WAV file.
 
@@ -234,11 +171,11 @@ int main() {
 }
 ```
 
-## 3. Advanced Topics
+## 2. Advanced Topics
 
 This section delves deeper into specific components of the `libshibatchsrc` API.
 
-### 3.1. Dithering with the `Dither` Class
+### 2.1. Dithering with the `Dither` Class
 
 Converting high-resolution audio to a lower bit depth (e.g., 24-bit to 16-bit) involves quantization, where sample values are rounded to the nearest available level. This process creates quantization errors that manifest as distortion correlated with the original signal, which is musically unpleasant, especially on fading reverb tails.
 
@@ -298,7 +235,7 @@ auto dither_stage = std::make_shared<ssrc::Dither<int32_t, float>>(
 // writer->execute();
 ```
 
-### 3.2. Precision: `float` vs. `double`
+### 2.2. Precision: `float` vs. `double`
 
 Most key classes in the library are templated with a `typename T` or `typename REAL`, such as `SSRC<REAL>`, `WavReader<T>`, and `WavWriter<T>`. This template parameter controls the floating-point precision used for internal calculations. You can instantiate these classes with either `float` (single-precision) or `double` (double-precision).
 
@@ -328,7 +265,7 @@ auto resampler = std::make_shared<ssrc::SSRC<double>>(
 auto dither_stage = std::make_shared<ssrc::Dither<int32_t, double>>(resampler, ...);
 ```
 
-### 3.3. `WavFormat` and `ContainerFormat`
+### 2.3. `WavFormat` and `ContainerFormat`
 
 These two structs work together to describe the audio data's format and the file structure that contains it.
 
@@ -376,7 +313,7 @@ ssrc::ContainerFormat container(ssrc::ContainerFormat::RF64);
 // auto writer = std::make_shared<ssrc::WavWriter<float>>(..., format_5_1, container, ...);
 ```
 
-### 3.4. Custom Dithering with `DoubleRNG`
+### 2.4. Custom Dithering with `DoubleRNG`
 
 The dithering process relies on a stream of random numbers to generate the dither noise. The library provides a default triangular PDF random number generator. However, you can provide your own by implementing the `ssrc::DoubleRNG` abstract base class.
 
@@ -428,7 +365,7 @@ auto dither_stage = std::make_shared<ssrc::Dither<int32_t, float>>(
 );
 ```
 
-### 3.5. `SSRC` Constructor Parameters
+### 2.5. `SSRC` Constructor Parameters
 
 The `SSRC` constructor takes three parameters that define the conversion profile, controlling the trade-off between quality and speed.
 
@@ -451,7 +388,7 @@ The `SSRC` constructor takes three parameters that define the conversion profile
 
 These parameters are bundled together in the command-line tool's "profiles". When using the library directly, you can mix and match these values to create a custom profile tailored to your specific needs.
 
-### 3.6. Implementing Custom Processing Stages with `StageOutlet`
+### 2.6. Implementing Custom Processing Stages with `StageOutlet`
 
 The entire `libshibatchsrc` library is built on a simple but powerful design pattern: the **processing pipeline**. Audio data flows from a source, through one or more processing stages, to a destination. Each of these stages is connected by a unified interface: `ssrc::StageOutlet<T>`.
 
@@ -528,7 +465,7 @@ auto gain_stage = std::make_shared<GainStage<float>>(resampler, 0.5);
 
 ## 3. C API (`libssrc-soxr`)
 
-In addition to the C++ template library, `ssrc` provides a C-language API with a calling convention very similar to the popular `libsoxr`. This API is easier to integrate into non-C++ projects and provides a more straightforward, stateful interface for resampling.
+In addition to the C++ template library, `ssrc` provides a C-language API with a calling convention somewhat similar to the popular `libsoxr`. This API is easier to integrate into non-C++ projects and provides a more straightforward, stateful interface for resampling.
 
 To use this API, include the header:
 ```c
@@ -537,7 +474,7 @@ To use this API, include the header:
 
 ### 3.1. libsoxr Compatibility
 
-This C API is designed to be a near drop-in replacement for `libsoxr`. By defining the `SSRC_LIBSOXR_EMULATION` macro before including the header, all `ssrc_soxr_*` functions and types are aliased to their `soxr_*` equivalents (e.g., `ssrc_soxr_create` becomes `soxr_create`). This allows for easy migration of existing codebases that already use `libsoxr`.
+This C API is designed to be a somewhat drop-in replacement for `libsoxr`. By defining the `SSRC_LIBSOXR_EMULATION` macro before including the header, all `ssrc_soxr_*` functions and types are aliased to their `soxr_*` equivalents (e.g., `ssrc_soxr_create` becomes `soxr_create`). This allows for relatively easy migration of existing codebases that already use `libsoxr`.
 
 ```c
 #define SSRC_LIBSOXR_EMULATION
