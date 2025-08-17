@@ -525,3 +525,188 @@ auto gain_stage = std::make_shared<GainStage<float>>(resampler, 0.5);
 // auto writer = std::make_shared<ssrc::WavWriter<float>>(..., outlets);
 // writer->execute();
 ```
+
+## 3. C API (`libssrc-soxr`)
+
+In addition to the C++ template library, `ssrc` provides a C-language API with a calling convention very similar to the popular `libsoxr`. This API is easier to integrate into non-C++ projects and provides a more straightforward, stateful interface for resampling.
+
+To use this API, include the header:
+```c
+#include "shibatch/ssrcsoxr.h"
+```
+
+### 3.1. libsoxr Compatibility
+
+This C API is designed to be a near drop-in replacement for `libsoxr`. By defining the `SSRC_LIBSOXR_EMULATION` macro before including the header, all `ssrc_soxr_*` functions and types are aliased to their `soxr_*` equivalents (e.g., `ssrc_soxr_create` becomes `soxr_create`). This allows for easy migration of existing codebases that already use `libsoxr`.
+
+```c
+#define SSRC_LIBSOXR_EMULATION
+#include "shibatch/ssrcsoxr.h"
+```
+The examples in this documentation will use the `soxr_*` names, assuming this macro is defined.
+
+### 3.2. Core Functions and Workflow
+
+The API is stateful. The typical workflow is:
+1.  **Create** a resampler object (`soxr_t`) with `soxr_create()`.
+2.  **Process** audio data in chunks by repeatedly calling `soxr_process()`.
+3.  **Flush** the resampler by calling `soxr_process()` with `NULL` input to retrieve any remaining buffered samples.
+4.  **Delete** the resampler object with `soxr_delete()` to free resources.
+
+#### `soxr_t soxr_create(input_rate, output_rate, num_channels, *error, *iospec, *qspec, *rtspec)`
+Creates and initializes a resampler instance.
+
+-   `input_rate`, `output_rate`: The source and destination sample rates.
+-   `num_channels`: The number of audio channels to process.
+-   `error`: A pointer to a `soxr_error_t` that will be set if creation fails.
+-   `iospec`: A `soxr_io_spec_t` struct specifying data formats.
+-   `qspec`: A `soxr_quality_spec_t` struct specifying the conversion quality profile.
+-   `rtspec`: Reserved for future use; should be `NULL`.
+
+Returns a `soxr_t` handle on success or `NULL` on failure.
+
+#### `soxr_error_t soxr_process(soxr, in, ilen, *idone, out, olen, *odone)`
+Processes a chunk of audio data.
+
+-   `soxr`: The resampler handle.
+-   `in`, `ilen`: Pointer to the input buffer and the number of frames it contains. To flush the internal buffers at the end of the stream, set `in` to `NULL` and `ilen` to `0`.
+-   `idone`: (Optional) A pointer to a `size_t` that will be set to the number of frames consumed from the input buffer.
+-   `out`, `olen`: Pointer to the output buffer and its capacity in frames.
+-   `odone`: A pointer to a `size_t` that will be set to the number of frames written to the output buffer.
+
+Returns an error code if an error occurs during processing.
+
+#### `void soxr_delete(soxr_t soxr)`
+Frees all memory and resources associated with the resampler handle.
+
+#### `double soxr_delay(soxr_t soxr)`
+Returns the processing delay of the resampler in samples. This represents the number of zero samples that should be discarded from the beginning of the output to maintain signal synchronization.
+
+### 3.3. Configuration
+
+#### `soxr_io_spec_t soxr_io_spec(itype, otype)`
+This helper function creates an I/O specification object.
+-   `itype`, `otype`: The data type for the input and output buffers. Supported types are `SOXR_FLOAT32` (for `float[]`) and `SOXR_FLOAT64` (for `double[]`).
+
+#### `soxr_quality_spec_t soxr_quality_spec(recipe, flags)`
+This helper function creates a quality specification object.
+-   `recipe`: A preset that defines the quality level.
+    -   `SSRC_SOXR_QQ`: "Quick" quality
+    -   `SSRC_SOXR_LQ`: "Low" quality
+    -   `SSRC_SOXR_MQ`: "Medium" quality (default)
+    -   `SSRC_SOXR_HQ`: "High" quality
+    -   `SSRC_SOXR_VHQ`: "Very High" quality
+-   `flags`: Additional flags (e.g., for dithering options). `0` is a safe default. The following values can be used.
+    -   `SSRC_SOXR_TPDF`: Use triangular dithering.
+    -   `SSRC_SOXR_NO_DITHER`: Do not use dither.
+
+### 3.4. Complete Example
+
+This example demonstrates how to convert a WAV file from one sample rate to another. It uses the popular `dr_wav` single-file library for file I/O, which is included in this repository for convenience.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+
+// Use the libsoxr compatibility layer
+#define SSRC_LIBSOXR_EMULATION
+#include "shibatch/ssrcsoxr.h"
+
+// dr_wav for file I/O.
+// In this project, a modified version `xdr_wav.h` is used.
+#define DR_WAV_IMPLEMENTATION
+#include "xdr_wav.h"
+
+#define BUFFER_FRAMES 3000
+
+int main(int argc, char *argv[]) {
+  if (argc < 4) {
+    printf("Usage: %s <input.wav> <output.wav> <new_rate>\n", argv[0]);
+    return 1;
+  }
+
+  const char* in_filename = argv[1];
+  const char* out_filename = argv[2];
+  double const out_rate = atof(argv[3]);
+
+  // 1. Open input WAV file
+  drwav wav_in;
+  if (!drwav_init_file(&wav_in, in_filename, NULL)) {
+    fprintf(stderr, "Failed to open input file: %s\n", in_filename);
+    return 1;
+  }
+
+  double const in_rate = (double)wav_in.sampleRate;
+  unsigned int const num_channels = wav_in.channels;
+
+  // 2. Configure and create the resampler
+  soxr_error_t error;
+  soxr_io_spec_t io_spec = soxr_io_spec(SOXR_FLOAT32, SOXR_FLOAT32);
+  soxr_quality_spec_t q_spec = soxr_quality_spec(SOXR_MQ, 0);
+  soxr_t soxr = soxr_create(in_rate, out_rate, num_channels, &error, &io_spec, &q_spec, NULL);
+
+  if (!soxr) {
+    fprintf(stderr, "soxr_create failed: %s\n", error);
+    drwav_uninit(&wav_in);
+    return 1;
+  }
+
+  // 3. Open output WAV file
+  drwav_data_format format;
+  format.container = drwav_container_riff;
+  format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+  format.channels = num_channels;
+  format.sampleRate = (drwav_uint32)out_rate;
+  format.bitsPerSample = 32;
+
+  drwav wav_out;
+  if (!drwav_init_file_write(&wav_out, out_filename, &format, NULL)) {
+    fprintf(stderr, "Failed to open output file: %s\n", out_filename);
+    soxr_delete(soxr);
+    drwav_uninit(&wav_in);
+    return 1;
+  }
+
+  // 4. Set up I/O buffers
+  float* in_buffer = (float*)malloc(sizeof(float) * BUFFER_FRAMES * num_channels);
+  size_t out_buffer_capacity = (size_t)(BUFFER_FRAMES * out_rate / in_rate + 0.5) + 16;
+  float* out_buffer = (float*)malloc(sizeof(float) * out_buffer_capacity * num_channels);
+
+  size_t frames_read;
+  // 5. Process data in a loop
+  while ((frames_read = drwav_read_pcm_frames_f32(&wav_in, BUFFER_FRAMES, in_buffer)) > 0) {
+    size_t frames_consumed;
+    size_t frames_produced;
+
+    error = soxr_process(soxr,
+			 in_buffer, frames_read, &frames_consumed,
+			 out_buffer, out_buffer_capacity, &frames_produced);
+
+    if (error) fprintf(stderr, "soxr_process error: %s\n", error);
+
+    if (frames_produced > 0) {
+      drwav_write_pcm_frames(&wav_out, frames_produced, out_buffer);
+    }
+  }
+
+  // 6. Flush the resampler's internal buffer
+  size_t frames_produced;
+  do {
+    error = soxr_process(soxr, NULL, 0, NULL, out_buffer, out_buffer_capacity, &frames_produced);
+    if (error) fprintf(stderr, "soxr_process (flush) error: %s\n", error);
+    if (frames_produced > 0) {
+      drwav_write_pcm_frames(&wav_out, frames_produced, out_buffer);
+    }
+  } while (frames_produced > 0);
+
+  // 7. Clean up
+  free(in_buffer);
+  free(out_buffer);
+  soxr_delete(soxr);
+  drwav_uninit(&wav_in);
+  drwav_uninit(&wav_out);
+
+  printf("Successfully created %s\n", out_filename);
+  return 0;
+}
+```
