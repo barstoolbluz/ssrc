@@ -145,7 +145,7 @@ Notes
 #define dr_wav_h
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 #define DRWAV_STRINGIFY(x)      #x
@@ -1355,7 +1355,7 @@ DRWAV_API drwav_bool32 drwav_guid_equal(const drwav_uint8 a[16], const drwav_uin
 DRWAV_API drwav_bool32 drwav_fourcc_equal(const drwav_uint8* a, const char* b);
 
 #ifdef __cplusplus
-}
+//}
 #endif
 #endif  /* dr_wav_h */
 

@@ -22,7 +22,7 @@ namespace shibatch {
     const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> &in;
 
   public:
-    WavWriterStage(const std::string &filename, const drwav_fmt &fmt, const dr_wav::Container& container,
+    WavWriterStage(const std::string &filename, const dr_wav::drwav_fmt &fmt, const dr_wav::Container& container,
 	      const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> &in_, uint64_t nFrames = 0, size_t bufsize = 65536) :
       N(bufsize), wav(filename.c_str(), fmt, container, nFrames), in(in_) {
       if (fmt.channels != in.size()) throw(std::runtime_error("WavWriterStage::WavWriterStage fmt.channels != in.size()"));

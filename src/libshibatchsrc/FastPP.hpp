@@ -68,7 +68,6 @@ namespace shibatch {
 	}
 
 	const size_t slast = (dpos * dstep + sstep - 1) / sstep;
-
 	memmove(buf.data(), buf.data() + (slast - sorg), (buf.size() - (slast - sorg)) * sizeof(REAL));
 	buflast -= slast - sorg;
       }

@@ -14,10 +14,10 @@
 #include <io.h>
 #endif
 
-#define DR_WAV_IMPLEMENTATION
-#include "dr_wav.h"
-
 namespace dr_wav {
+#define DR_WAV_IMPLEMENTATION
+#include "xdr_wav.h"
+
   class Format {
     drwav_fmt fmt;
   public:

@@ -21,7 +21,9 @@ namespace shibatch {
       condition_variable condVar;
       const uint32_t ch;
       shared_ptr<thread> th;
-      ArrayQueue<INTYPE> inQueue, outQueue;
+      ArrayQueue<INTYPE> inQueue;
+      ArrayQueue<OUTTYPE> outQueue;
+      bool finished = false;
 
       void thEntry() {
 	vector<OUTTYPE> buf(parent.N);
@@ -35,11 +37,14 @@ namespace shibatch {
 	}
 
 	while(parent.tail[ch]->read(buf.data(), parent.N)) ;
+
+	unique_lock lock(mtx);
+	finished = true;
+	condVar.notify_all();
       }
 
     public:
       Outlet(Soxifier& parent_, int ch_) : parent(parent_), ch(ch_) {}
-      ~Outlet() {}
 
       bool atEnd() {
 	unique_lock lock(mtx);
@@ -145,20 +150,15 @@ namespace shibatch {
       state = STARTED;
     }
 
-    void flow(const INTYPE *ibuf, OUTTYPE *obuf, size_t *isamp, size_t *osamp) {
+    void flow(const INTYPE *ibuf, OUTTYPE *obuf, size_t *inframe, size_t *onframe) {
       if (state != STARTED && state != DRAINING) throw(runtime_error("Soxifier::flow state != STARTED"));
 
-      size_t ilen = *isamp, olen = *osamp;
+      size_t ilen = *inframe, olen = *onframe;
 
       {
 	size_t z = collectOutput(obuf, olen);
 	olen -= z;
-	obuf += z;
-      }
-
-      if (olen == 0) {
-	*isamp = 0;
-	return;
+	obuf += z * nch;
       }
 
       for(unsigned c=0;c<nch;c++) {
@@ -178,28 +178,31 @@ namespace shibatch {
       {
 	size_t z = collectOutput(obuf, olen);
 	olen -= z;
-	obuf += z;
+	obuf += z * nch;
       }
 
-      *osamp = *osamp - olen;
+      *onframe = *onframe - olen;
     }
 
-    void drain(OUTTYPE *obuf, size_t *osamp) {
-      if (state != STARTED) throw(runtime_error("Soxifier::drain state != STARTED"));
+    void drain(OUTTYPE *obuf, size_t *onframe) {
+      if (state != STARTED && state != DRAINING) throw(runtime_error("Soxifier::drain state != STARTED && state != DRAINING"));
 
-      state = DRAINING;
+      if (state != DRAINING) {
+	state = DRAINING;
 
-      for(unsigned c=0;c<nch;c++) {
-	unique_lock lock(outlet[c]->mtx);
-	outlet[c]->condVar.notify_all();
+	for(unsigned c=0;c<nch;c++) {
+	  unique_lock lock(outlet[c]->mtx);
+	  outlet[c]->condVar.notify_all();
+	  while(!outlet[c]->finished) outlet[c]->condVar.wait(lock);
+	}
       }
 
       size_t z = 0;
-      flow(nullptr, obuf, &z, osamp);
+      flow(nullptr, obuf, &z, onframe);
     }
 
     void stop() {
-      if (state != STARTED && state != DRAINING) throw(runtime_error("Soxifier::drain state != STARTED && state != DRAINING"));
+      if (state != STARTED && state != DRAINING) throw(runtime_error("Soxifier::stop state != STARTED && state != DRAINING"));
 
       state = STOPPED;
 
@@ -298,7 +301,7 @@ ssrc_soxr_error_t ssrc_soxr_process(struct ssrc_soxr *thiz,
 
   auto xifier = thiz->f32f32;
 
-  if (in && ilen != 0) {
+  if (in) {
     size_t isamp = ilen, osamp = olen;
 
     xifier->flow((const float *)in, (float *)out, &isamp, &osamp);
@@ -317,8 +320,6 @@ ssrc_soxr_error_t ssrc_soxr_process(struct ssrc_soxr *thiz,
 }
 
 void ssrc_soxr_delete(struct ssrc_soxr *thiz) {
-  cerr << "ssrc_soxr_delete" << endl;
-
   if (thiz->magic != MAGIC) {
     cerr << "ssrc_soxr_delete : thiz->magic != MAGIC" << endl;
     abort();

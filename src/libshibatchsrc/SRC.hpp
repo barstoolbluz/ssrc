@@ -179,8 +179,6 @@ namespace shibatch {
       }
     }
 
-    ~SSRCStage() {}
-
     bool atEnd() {
       if (dfs > sfs) {
 	return undersample->atEnd();

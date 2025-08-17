@@ -9,16 +9,13 @@ namespace shibatch {
   template<typename T>
   class ArrayQueue {
     std::deque<std::vector<T>> queue;
-    size_t pos = 0;
+    size_t pos = 0, sumsize = 0;
 
   public:
-    size_t size() {
-      size_t ret = 0;
-      for(auto v : queue) ret += v.size();
-      return ret - pos;
-    }
+    size_t size() { return sumsize - pos; }
 
     void write(std::vector<T> &&v) {
+      sumsize += v.size();
       queue.push_back(std::move(v));
     }
 
@@ -38,6 +35,7 @@ namespace shibatch {
 	ptr += cs;
 	r -= cs;
 	if (pos >= queue.front().size()) {
+	  sumsize -= queue.front().size();
 	  queue.pop_front();
 	  pos = 0;
 	}

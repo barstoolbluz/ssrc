@@ -74,6 +74,7 @@ double ssrc_soxr_delay(struct ssrc_soxr *thiz);
 #ifdef SSRC_LIBSOXR_EMULATION
 typedef ssrc_soxr_error_t soxr_error_t;
 typedef ssrc_soxr_io_spec_t soxr_io_spec_t;
+typedef ssrc_soxr_quality_spec_t soxr_quality_spec_t;
 typedef struct ssrc_soxr * soxr_t;
 
 typedef enum {
@@ -85,6 +86,10 @@ typedef enum {
 
 static inline soxr_io_spec_t soxr_io_spec(soxr_datatype_t itype, soxr_datatype_t otype) {
   return ssrc_soxr_io_spec(itype, otype);
+}
+
+static inline soxr_quality_spec_t soxr_quality_spec(unsigned long recipe, unsigned long flags) {
+  return ssrc_soxr_quality_spec(recipe, flags);
 }
 
 static inline soxr_t soxr_create(

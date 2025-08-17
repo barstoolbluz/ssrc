@@ -74,9 +74,9 @@ namespace shibatch {
 	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
     }
 
-    drwav getWav() const { return wav.getWav(); }
-    drwav_fmt getFmt() const { return wav.getFmt(); }
-    drwav_container getContainer() const { return wav.getContainer(); }
+    dr_wav::drwav getWav() const { return wav.getWav(); }
+    dr_wav::drwav_fmt getFmt() const { return wav.getFmt(); }
+    dr_wav::drwav_container getContainer() const { return wav.getContainer(); }
     uint32_t getSampleRate() const { return wav.getSampleRate(); }
     uint16_t getNBitsPerSample() const { return wav.getNBitsPerSample(); }
     uint32_t getNChannels() const { return wav.getNChannels(); }

@@ -49,7 +49,7 @@ template<typename T> std::shared_ptr<StageOutlet<T>> WavReader<T>::getOutlet(uin
 }
 
 template<typename T> WavFormat WavReader<T>::getFormat() {
-  drwav_fmt fmt = dynamic_pointer_cast<WavReaderStage<T>>(impl)->getFmt();
+  dr_wav::drwav_fmt fmt = dynamic_pointer_cast<WavReaderStage<T>>(impl)->getFmt();
   ssrc::WavFormat ret;
 
   ret.formatTag = fmt.formatTag;
@@ -91,7 +91,7 @@ template ContainerFormat WavReader<double>::getContainer();
 template<typename T> WavWriter<T>::WavWriter(const std::string &filename,
 					     const ssrc::WavFormat& fmt_, const ssrc::ContainerFormat& cont_,
 					     const std::vector<std::shared_ptr<StageOutlet<T>>> &in_, uint64_t nFrames) {
-  drwav_fmt fmt;
+  dr_wav::drwav_fmt fmt;
   memcpy(&fmt, &fmt_, sizeof(fmt));
   impl = make_shared<WavWriterStage<T>>(filename, fmt, dr_wav::Container(cont_.c), in_, nFrames);
 }
