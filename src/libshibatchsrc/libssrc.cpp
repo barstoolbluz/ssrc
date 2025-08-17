@@ -22,17 +22,23 @@ template<typename REAL> bool SSRC<REAL>::atEnd() {
   return dynamic_pointer_cast<SSRCStage<REAL>>(impl)->atEnd();
 }
 
+template<typename REAL> double SSRC<REAL>::getDelay() {
+  return dynamic_pointer_cast<SSRCStage<REAL>>(impl)->getDelay();
+}
+
 //
 
 template SSRC<float>::SSRC(shared_ptr<StageOutlet<float>>, int64_t, int64_t, unsigned, double, double);
 template SSRC<float>::~SSRC();
 template size_t SSRC<float>::read(float *ptr, size_t n);
 template bool SSRC<float>::atEnd();
+template double SSRC<float>::getDelay();
 
 template SSRC<double>::SSRC(shared_ptr<StageOutlet<double>>, int64_t, int64_t, unsigned, double, double);
 template SSRC<double>::~SSRC();
 template size_t SSRC<double>::read(double *ptr, size_t n);
 template bool SSRC<double>::atEnd();
+template double SSRC<double>::getDelay();
 
 //
 

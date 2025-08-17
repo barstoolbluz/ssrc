@@ -432,6 +432,8 @@ struct Pipeline {
       timeStart = timeus();
     }
 
+    double delay = 0;
+
     if (shaperid == -1 || bits < 0) {
       vector<shared_ptr<ssrc::StageOutlet<REAL>>> out(nch);
       size_t nFrames = 0;
@@ -440,6 +442,7 @@ struct Pipeline {
 	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
 					     profile.log2dftfilterlen, profile.aa, profile.guard);
 	out[i] = ssrc;
+	delay = ssrc->getDelay();
 
 	if (dst == STDOUT) {
 	  auto buf = make_shared<BufferStage<REAL>>(ssrc);
@@ -468,6 +471,8 @@ struct Pipeline {
 	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
 					     profile.log2dftfilterlen, profile.aa, profile.guard);
 
+	delay = ssrc->getDelay();
+
 	auto dither = make_shared<Dither<int32_t, REAL>>(ssrc, gain, offset, clipMin, clipMax, &ssrc::noiseShaperCoef[shaperid], rng);
 	out[i] = dither;
 
@@ -486,6 +491,7 @@ struct Pipeline {
     }
 
     if (debug) {
+      cerr << endl << "Delay : " << delay << " samples" << endl;
       int64_t timeEnd = timeus();
       cerr << endl << "Elapsed time : " << ((timeEnd - timeStart) * 0.000001) << " seconds" << endl;
     }

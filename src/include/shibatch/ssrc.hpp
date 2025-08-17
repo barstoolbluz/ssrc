@@ -111,6 +111,7 @@ namespace ssrc {
     ~SSRC();
     bool atEnd();
     size_t read(REAL *ptr, size_t n);
+    double getDelay();
   private:
     std::shared_ptr<class SSRCImpl> impl;
   };

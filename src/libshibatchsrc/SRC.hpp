@@ -121,6 +121,7 @@ namespace shibatch {
 
     const int64_t dftflen;
     const double aa, guard;
+    double delay = 0;
 
     int64_t osm, fsos;
 
@@ -166,6 +167,8 @@ namespace shibatch {
 
 	double df = KaiserWindow::transitionBandWidth(aa, hfs * osm, dftflen - 1);
 	dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2 - df, dftflen - 1, aa, 1.0 / dftflen);
+
+	delay = ((ppfv.size() * 0.5 - 1) / fslcm + (dftfv.size() * 0.5 - 1) / (hfs * osm)) * dfs;
       }
 
       if (dfs > sfs) {
@@ -198,6 +201,8 @@ namespace shibatch {
 	return inlet->read(out, nSamples);
       }
     }
+
+    double getDelay() { return delay; }
   };
 }
 #endif // #ifndef SRC_HPP
