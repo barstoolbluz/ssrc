@@ -44,6 +44,8 @@ namespace shibatch {
 	ssize += nRead;
 	dsize = ssize * sstep / dstep;
 
+	bool endReached = nRead == 0;
+
 	if (dpos >= dsize) return nOut;
 
 	buflast += nRead;
@@ -55,6 +57,8 @@ namespace shibatch {
 	for(size_t i=0;i<bs && dpos < dsize;i++) {
 	  const size_t spos = (dpos * dstep + sstep - 1) / sstep;
 	  const size_t filterpos = spos * sstep - dpos * dstep;
+
+	  if ((firlen + sstep - 1) / sstep - 1 + (spos - sorg) >= buflast && !endReached) break;
 
 	  REAL sum = 0;
 	  for(size_t p = 0;p < (firlen + sstep - 1) / sstep;p++) {

@@ -6,12 +6,12 @@
 
 **If you have any thoughts or comments about this project, feel free to post them in [Discussions](https://github.com/shibatch/SSRC/discussions)**.
 
-Shibatch Sampling Rate Converter (SSRC) is a fast and high-quality sampling rate converter for PCM WAV files. It is designed to efficiently handle the conversion between commonly used sampling rates such as 44.1kHz and 48kHz while ensuring minimal sound quality degradation.
+Shibatch Sample Rate Converter (SSRC) is a fast and high-quality sample rate converter for PCM WAV files. It is designed to efficiently handle the conversion between commonly used sampling rates such as 44.1kHz and 48kHz while ensuring minimal sound quality degradation.
 
 ## Features
 
 - **High-Quality Conversion**: Achieves excellent audio quality with minimal artifacts.
-- **FFT-Based Algorithm**: Utilizes a unique FFT-based algorithm for precise and efficient sampling rate conversion.
+- **FFT-Based Algorithm**: Utilizes a unique FFT-based algorithm for precise and efficient sample rate conversion.
 - **SleefDFT Integration**: Leverages [SleefDFT](https://sleef.org/dft.xhtml), a product of the [SLEEF Project](https://sleef.org/), for fast Fourier transforms (FFT), enabling high-speed conversions.
 - **SIMD Optimization**: Takes advantage of SIMD (Single Instruction, Multiple Data) techniques for accelerated processing. It is capable of high-speed conversion using [AVX-512](https://en.wikipedia.org/wiki/AVX-512).
 - **Dithering Functionality**: Supports various dithering techniques, including noise shaping based on the absolute threshold of hearing (ATH) curve.
@@ -102,10 +102,10 @@ In addition to the command-line tool, SSRC provides powerful C++ and C APIs, all
 For detailed information on the API, please see [**API_DOCUMENTATION.md**](API_DOCUMENTATION.md).
 
 ### C++ API (`ssrc.hpp`)
-A modern, header-only C++17 API that uses templates and standard library features for flexible and type-safe audio processing pipelines.
+A modern, C++17 API that uses templates and standard library features for flexible and type-safe audio processing pipelines.
 
 ### C API (`ssrcsoxr.h`)
-A stable C-language API that is compatible with the popular SoX Resampler library (`libsoxr`). By defining `SSRC_LIBSOXR_EMULATION`, SSRC can serve as a drop-in replacement for `soxr` in existing projects.
+A C-language API that is compatible with the popular SoX Resampler library (`libsoxr`). By defining `SSRC_LIBSOXR_EMULATION`, SSRC can serve as a drop-in replacement for `soxr` in existing projects.
 
 ### How to Build the Library
 

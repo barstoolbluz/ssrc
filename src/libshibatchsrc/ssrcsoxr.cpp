@@ -1,7 +1,9 @@
 #include <iostream>
+#include <string>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <unordered_map>
 #include <cstdlib>
 #include <cmath>
 
@@ -214,6 +216,9 @@ namespace shibatch {
   };
 
   static const uint64_t MAGIC = 0x8046b5efb58216fcULL;
+
+  mutex mtxErrorString;
+  unordered_map<thread::id, string> errorString;
 }
 
 using namespace shibatch;
@@ -270,8 +275,10 @@ struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsign
     return nullptr;
   }
 
+  ssrc_soxr *thiz = nullptr;
+
   try {
-    ssrc_soxr *thiz = new ssrc_soxr();
+    thiz = new ssrc_soxr();
 
     thiz->itype = iospec->itype;
     thiz->otype = iospec->otype;
@@ -297,7 +304,12 @@ struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsign
 
     return thiz;
   } catch(exception &ex) {
-    *eptr = "ssrc_soxr_create : Caught an exception";
+    if (thiz) delete thiz;
+
+    unique_lock lock(mtxErrorString);
+    errorString[this_thread::get_id()] = ex.what();
+    *eptr = errorString[this_thread::get_id()].c_str();
+
     return nullptr;
   }
 }
@@ -330,7 +342,10 @@ ssrc_soxr_error_t ssrc_soxr_process(struct ssrc_soxr *thiz,
 
     return nullptr;
   } catch(exception &ex) {
-    return "ssrc_soxr_process : Caught an exception";
+    unique_lock lock(mtxErrorString);
+    errorString[this_thread::get_id()] = ex.what();
+
+    return errorString[this_thread::get_id()].c_str();
   }
 }
 

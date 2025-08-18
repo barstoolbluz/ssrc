@@ -469,7 +469,7 @@ namespace dr_wav {
       if ((wav.fmt.formatTag == Format::IEEE_FLOAT || wav.fmt.subFormat[0] == 0x03) &&
 	  wav.fmt.bitsPerSample == 64) {
 	buff64.resize(std::max(buff64.size(), nFrame * getNChannels()));
-	for(size_t i=0;i<nFrame * getNChannels();i++) buff64[i] = ptr[i] * (1.0 / (1 << 23));
+	for(size_t i=0;i<nFrame * getNChannels();i++) buff64[i] = ptr[i] * (1.0 / (1 << 31));
 	return drwav_write_raw(&wav, nFrame * getNChannels() * sizeof(double), buff64.data());
       }
       

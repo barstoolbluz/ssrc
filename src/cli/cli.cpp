@@ -1,4 +1,4 @@
-// Shibatch Sampling Rate Converter written by Naoki Shibata  https://shibatch.github.io
+// Shibatch Sample Rate Converter written by Naoki Shibata  https://shibatch.github.io
 
 #include <iostream>
 #include <string>
@@ -89,7 +89,7 @@ void showContainerOptions() {
 }
 
 void showUsage(const string& argv0, const string& mes = "") {
-  cerr << ("Shibatch Sampling Rate Converter  Version " SSRC_VERSION) << endl;
+  cerr << ("Shibatch Sample Rate Converter  Version " SSRC_VERSION) << endl;
   cerr << endl;
   cerr << "Usage: " << argv0 << " [<options>] <source file name> <destination file name>" << endl;
   cerr << endl;
@@ -112,9 +112,10 @@ void showUsage(const string& argv0, const string& mes = "") {
   cerr << "          --dstContainer <name>      Select a container of output file" << endl;
   cerr << "                                       riff : The most common WAV format" << endl;
   cerr << "                                       help : Show all available options" << endl;
-  cerr << "          --genImpulse <fs> <period> Generate an impulse signal as input" << endl;
-  cerr << "          --genSweep <fs> <length> <startfs> <endfs>" << endl;
-  cerr << "                                     Generate a sweep signal as input" << endl;
+  cerr << "          --genImpulse <fs> <nch> <period>" << endl;
+  cerr << "                                     Generate an impulse signal" << endl;
+  cerr << "          --genSweep <fs> <nch> <length> <startfs> <endfs>" << endl;
+  cerr << "                                     Generate a sweep signal" << endl;
   cerr << endl;
   cerr << "If you like this tool, visit https://github.com/shibatch/ssrc and give it a star." << endl;
   cerr << endl;
@@ -285,7 +286,7 @@ struct Pipeline {
 
   size_t impulsePeriod, sweepLength;
   double sweepStart, sweepEnd;
-  int generatorFs;
+  int generatorNch, generatorFs;
 
   ConversionProfile profile;
 
@@ -294,13 +295,13 @@ struct Pipeline {
 	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_,
 	   uint64_t seed_, double att_, double peak_, bool quiet_, bool debug_,
 	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
-	   double sweepStart_, double sweepEnd_, int generatorFs_, ConversionProfile profile_) :
+	   double sweepStart_, double sweepEnd_, int generatorNch_, int generatorFs_, ConversionProfile profile_) :
     argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
     profileName(profileName_), dstContainerName(dstContainerName_), dstChannelMask(dstChannelMask_),
     rate(rate_), bits(bits_), dither(dither_), pdf(pdf_),
     seed(seed_), att(att_), peak(peak_), quiet(quiet_), debug(debug_),
     src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
-    sweepStart(sweepStart_), sweepEnd(sweepEnd_), generatorFs(generatorFs_), profile(profile_) {}
+    sweepStart(sweepStart_), sweepEnd(sweepEnd_), generatorNch(generatorNch_), generatorFs(generatorFs_), profile(profile_) {}
 
   void execute() {
     if (seed == ~0ULL) seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -321,11 +322,11 @@ struct Pipeline {
       break;
     case IMPULSE:
       reader = make_shared<ImpulseGenerator<REAL>>
-	(WavFormat(WavFormat::IEEE_FLOAT, 1, generatorFs, 32), 0.5, impulsePeriod, impulsePeriod * 2);
+	(WavFormat(WavFormat::IEEE_FLOAT, generatorNch, generatorFs, 32), 0.5, impulsePeriod, impulsePeriod * 2);
       break;
     case SWEEP:
       reader = make_shared<SweepGenerator<REAL>>
-	(WavFormat(WavFormat::IEEE_FLOAT, 1, generatorFs, 32), sweepStart, sweepEnd, 0.5, sweepLength);
+	(WavFormat(WavFormat::IEEE_FLOAT, generatorNch, generatorFs, 32), sweepStart, sweepEnd, 0.5, sweepLength);
       break;
     }
 
@@ -512,7 +513,7 @@ int main(int argc, char **argv) {
 
   size_t impulsePeriod = 0, sweepLength = 0;
   double sweepStart = 0, sweepEnd = 0;
-  int generatorFs = 0;
+  int generatorNch = 1, generatorFs = 0;
 
   int nextArg;
   for(nextArg = 1;nextArg < argc;nextArg++) {
@@ -563,24 +564,38 @@ int main(int argc, char **argv) {
       nextArg++;
     } else if (string(argv[nextArg]) == "--genImpulse") {
       char *p;
-      if (nextArg+1 >= argc) showUsage(argv[0], "Two positive values are expected after --genImpulse.");
+
+      if (nextArg+1 >= argc) showUsage(argv[0], "Three positive values are expected after --genImpulse.");
       generatorFs = strtoul(argv[nextArg+1], &p, 0);
       if (p == argv[nextArg+1] || *p)
-	showUsage(argv[0], "Two positive values are expected after --genImpulse.");
+	showUsage(argv[0], "Three positive values are expected after --genImpulse.");
       nextArg++;
-      if (nextArg+1 >= argc) showUsage(argv[0], "Two positive values are expected after --genImpulse.");
+
+      if (nextArg+1 >= argc) showUsage(argv[0], "Three positive values are expected after --genImpulse.");
+      generatorNch = strtoul(argv[nextArg+1], &p, 0);
+      if (p == argv[nextArg+1] || *p)
+	showUsage(argv[0], "Three positive values are expected after --genImpulse.");
+      nextArg++;
+
+      if (nextArg+1 >= argc) showUsage(argv[0], "Three positive values are expected after --genImpulse.");
       impulsePeriod = strtoull(argv[nextArg+1], &p, 0);
       if (p == argv[nextArg+1] || *p)
-	showUsage(argv[0], "Two positive values are expected after --genImpulse.");
+	showUsage(argv[0], "Three positive values are expected after --genImpulse.");
       nextArg++;
+
       src = IMPULSE;
       srcfn = "[IMPULSE]";
     } else if (string(argv[nextArg]) == "--genSweep") {
-      const string mes = "Four positive values are expected after --genSweep.";
+      const string mes = "Five positive values are expected after --genSweep.";
       char *p;
 
       if (nextArg+1 >= argc) showUsage(argv[0], mes);
       generatorFs = strtoul(argv[nextArg+1], &p, 0);
+      if (p == argv[nextArg+1] || *p) showUsage(argv[0], mes);
+      nextArg++;
+
+      if (nextArg+1 >= argc) showUsage(argv[0], mes);
+      generatorNch = strtoul(argv[nextArg+1], &p, 0);
       if (p == argv[nextArg+1] || *p) showUsage(argv[0], mes);
       nextArg++;
 
@@ -692,14 +707,14 @@ int main(int argc, char **argv) {
 			       dstChannelMask, rate, bits, dither, pdf,
 			       seed, att, peak, quiet, debug,
 			       src, dst, impulsePeriod, sweepLength,
-			       sweepStart, sweepEnd, generatorFs, profile);
+			       sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();
     } else {
       Pipeline<double> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
 				dstChannelMask, rate, bits, dither, pdf,
 				seed, att, peak, quiet, debug,
 				src, dst, impulsePeriod, sweepLength,
-				sweepStart, sweepEnd, generatorFs, profile);
+				sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();
     }
   } catch(exception &ex) {

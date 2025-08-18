@@ -85,7 +85,7 @@ typedef enum {
 } soxr_datatype_t;
 
 static inline soxr_io_spec_t soxr_io_spec(soxr_datatype_t itype, soxr_datatype_t otype) {
-  return ssrc_soxr_io_spec(itype, otype);
+  return ssrc_soxr_io_spec((ssrc_soxr_datatype_t)itype, (ssrc_soxr_datatype_t)otype);
 }
 
 static inline soxr_quality_spec_t soxr_quality_spec(unsigned long recipe, unsigned long flags) {

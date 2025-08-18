@@ -55,27 +55,32 @@ namespace shibatch {
       rndbuf.resize(std::max(rndbuf.size(), nSamples));
       rng->fill(rndbuf.data(), nSamples);
 
-      for(size_t p=0;p<nSamples;p++) {
-	double h = shaperCoefs[shaperLen-1] * buf[shaperLen-1];
+      if (shaperLen != 0) {
+	for(size_t p=0;p<nSamples;p++) {
+	  double h = shaperCoefs[shaperLen-1] * buf[shaperLen-1];
 
-	for(int i=shaperLen-2;i>=0;i--) {
-	  h += shaperCoefs[i] * buf[i];
-	  buf[i+1] = buf[i];
-	}
+	  for(int i=shaperLen-2;i>=0;i--) {
+	    h += shaperCoefs[i] * buf[i];
+	    buf[i+1] = buf[i];
+	  }
 
-	double x = gain * in[p] + offset + h;
-	double q = rint(x + rndbuf[p]);
-	buf[0] = q - x;
-
-	if (q < clipMin || q > clipMax) {
-	  if (q < clipMin) q = clipMin;
-	  if (q > clipMax) q = clipMax;
+	  double x = gain * in[p] + offset + h;
+	  double q = rint(x + rndbuf[p]);
 	  buf[0] = q - x;
-	  if (buf[0] < -1) buf[0] = -1;
-	  if (buf[0] >  1) buf[0] =  1;
-	}
 
-	out[p] = q;
+	  if (q < clipMin || q > clipMax) {
+	    if (q < clipMin) q = clipMin;
+	    if (q > clipMax) q = clipMax;
+	    buf[0] = q - x;
+	    if (buf[0] < -1) buf[0] = -1;
+	    if (buf[0] >  1) buf[0] =  1;
+	  }
+
+	  out[p] = q;
+	}
+      } else {
+	for(size_t p=0;p<nSamples;p++)
+	  out[p] = rint(gain * in[p] + offset + rndbuf[p]);
       }
 
       return nSamples;

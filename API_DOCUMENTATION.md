@@ -111,22 +111,22 @@ writer.execute();
 
 ### 1.4. Complete Example
 
-Here is a complete example that ties everything together. It reads a WAV file, resamples all its channels from 44.1kHz to 96kHz using single-precision floats, and saves the result as a 24-bit PCM WAV file.
+Here is a complete example that ties everything together. It reads a WAV file, resamples it using single-precision floats, and saves the result as a 24-bit PCM WAV file.
 
 ```cpp
 #include <iostream>
 #include <vector>
 #include <memory>
+#include <cstdlib>
 #include "shibatch/ssrc.hpp"
 
-void convert_file(const std::string& in_path, const std::string& out_path) {
+void convert_file(const std::string& in_path, const std::string& out_path, int dstRate) {
     try {
         // 1. Set up the reader for single-precision floats
         auto reader = std::make_shared<ssrc::WavReader<float>>(in_path);
         ssrc::WavFormat srcFormat = reader->getFormat();
 
         // 2. Define destination format and conversion parameters
-        int dstRate = 96000;
         int dstBits = 24;
 
         ssrc::WavFormat dstFormat(ssrc::WavFormat::PCM, srcFormat.channels, dstRate, dstBits);
@@ -159,13 +159,13 @@ void convert_file(const std::string& in_path, const std::string& out_path) {
     }
 }
 
-int main() {
-  if (argc == 3) {
-    convert_file(argv[1], argv[2]);
+int main(int argc, char **argv) {
+  if (argc == 4) {
+    convert_file(argv[1], argv[2], atoi(argv[3]));
     return 0;
   }
 
-  std::cerr << "Usage : " << argv[0] << " <source wav file> <dest wav file>" << std::endl;
+  std::cerr << "Usage : " << argv[0] << " <input.wav> <output.wav> <new_rate>" << std::endl;
 
   return -1;
 }
