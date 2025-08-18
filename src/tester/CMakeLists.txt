@@ -11,3 +11,10 @@ target_link_options(test_soxrapi PRIVATE ${OpenMP_C_FLAGS})
 target_include_directories(test_soxrapi PRIVATE ${OpenMP_C_INCLUDE_DIRS})
 target_include_directories(test_soxrapi PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchsrc")
 
+add_test(NAME test_compare COMMAND "${CMAKE_COMMAND}"
+  -D TARGET_FILE_ssrc=$<TARGET_FILE:ssrc>
+  -D TARGET_FILE_test_cppapi=$<TARGET_FILE:test_cppapi>
+  -D TARGET_FILE_test_soxrapi=$<TARGET_FILE:test_soxrapi>
+  -D TMP_DIR_PATH=${EXECUTABLE_OUTPUT_PATH}
+  -P ${CMAKE_CURRENT_LIST_DIR}/test_compare.cmake
+)
