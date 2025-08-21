@@ -18,3 +18,23 @@ add_test(NAME test_compare COMMAND "${CMAKE_COMMAND}"
   -D TMP_DIR_PATH=${EXECUTABLE_OUTPUT_PATH}
   -P ${CMAKE_CURRENT_LIST_DIR}/test_compare.cmake
 )
+
+add_test(NAME test_10kHz-140dB COMMAND "${CMAKE_COMMAND}"
+  -D TARGET_FILE_ssrc=$<TARGET_FILE:ssrc>
+  -D TARGET_FILE_scsa=$<TARGET_FILE:scsa>
+  -D TARGET_FILE_test_cppapi=$<TARGET_FILE:test_cppapi>
+  -D TARGET_FILE_test_soxrapi=$<TARGET_FILE:test_soxrapi>
+  -D TMP_DIR_PATH=${EXECUTABLE_OUTPUT_PATH}
+  -D TESTER_DIR_PATH=${CMAKE_CURRENT_LIST_DIR}
+  -P ${CMAKE_CURRENT_LIST_DIR}/test_10kHz_-140dB.cmake
+)
+
+add_test(NAME test_10kHz-100dB COMMAND "${CMAKE_COMMAND}"
+  -D TARGET_FILE_ssrc=$<TARGET_FILE:ssrc>
+  -D TARGET_FILE_scsa=$<TARGET_FILE:scsa>
+  -D TARGET_FILE_test_cppapi=$<TARGET_FILE:test_cppapi>
+  -D TARGET_FILE_test_soxrapi=$<TARGET_FILE:test_soxrapi>
+  -D TMP_DIR_PATH=${EXECUTABLE_OUTPUT_PATH}
+  -D TESTER_DIR_PATH=${CMAKE_CURRENT_LIST_DIR}
+  -P ${CMAKE_CURRENT_LIST_DIR}/test_10kHz_-100dB.cmake
+)

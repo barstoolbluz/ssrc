@@ -191,15 +191,15 @@ public:
 template<typename T>
 class SweepGenerator : public ssrc::OutletProvider<T> {
   class Outlet : public ssrc::StageOutlet<T> {
-    const uint32_t fs;
+    const uint32_t fs, ch;
     const double start, end, amp;
     const size_t total;
     size_t n;
     double phase = 0;
 
   public:
-    Outlet(uint32_t fs_, double start_, double end_, double amp_, size_t total_) :
-      fs(fs_), start(start_), end(end_), amp(amp_), total(total_), n(total_) {}
+    Outlet(uint32_t fs_, uint32_t ch_, double start_, double end_, double amp_, size_t total_) :
+      fs(fs_), ch(ch_), start(start_), end(end_), amp(amp_), total(total_), n(total_) {}
     ~Outlet() {}
 
     bool atEnd() { return n == 0; }
@@ -208,7 +208,7 @@ class SweepGenerator : public ssrc::OutletProvider<T> {
       nSamples = min(n, nSamples);
 
       for(size_t i=0;i<nSamples;i++) {
-	*out++ = amp * sin(phase);
+	*out++ = amp * sin(phase + ch);
 	phase += M_PI * 2 * (end + (start - end) * (n - i) / total) / fs;
       }
 
@@ -224,7 +224,8 @@ class SweepGenerator : public ssrc::OutletProvider<T> {
 public:
   SweepGenerator(const WavFormat& format_, double start_, double end_, double amp_, size_t n_) : format(format_) {
     v.resize(format.channels);
-    for(unsigned i=0;i<format.channels;i++) v[i] = make_shared<Outlet>(format.sampleRate, start_, end_, amp_, n_);
+    for(unsigned i=0;i<format.channels;i++)
+      v[i] = make_shared<Outlet>(format.sampleRate, (start_ == 0 && end_ == 0) ? 0 : i, start_, end_, amp_, n_);
   }
 
   shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c) { return v[c]; }

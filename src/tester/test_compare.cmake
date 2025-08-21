@@ -5,12 +5,14 @@ execute_process(
   COMMAND_ECHO STDOUT
 )
 execute_process(
-  COMMAND "${TARGET_FILE_ssrc}" --rate 48000 --bits 24 "${TMP_DIR_PATH}/noise.44100.wav" "${TMP_DIR_PATH}/noise.ssrc.44100.48000.24.wav"
+  COMMAND "${TARGET_FILE_ssrc}" --rate 48000 --bits 24 --stdout "${TMP_DIR_PATH}/noise.44100.wav"
+  OUTPUT_FILE "${TMP_DIR_PATH}/noise.ssrc.44100.48000.24.wav"
   COMMAND_ERROR_IS_FATAL ANY
   COMMAND_ECHO STDOUT
 )
 execute_process(
-  COMMAND "${TARGET_FILE_ssrc}" --rate 44100 --bits 24 "${TMP_DIR_PATH}/noise.48000.wav" "${TMP_DIR_PATH}/noise.ssrc.48000.44100.24.wav"
+  COMMAND "${TARGET_FILE_ssrc}" --rate 44100 --bits 24 --stdin "${TMP_DIR_PATH}/noise.ssrc.48000.44100.24.wav"
+  INPUT_FILE "${TMP_DIR_PATH}/noise.48000.wav"
   COMMAND_ERROR_IS_FATAL ANY
   COMMAND_ECHO STDOUT
 )
@@ -20,7 +22,9 @@ execute_process(
   COMMAND_ECHO STDOUT
 )
 execute_process(
-  COMMAND "${TARGET_FILE_ssrc}" --rate 44100 --bits -32 "${TMP_DIR_PATH}/noise.48000.wav" "${TMP_DIR_PATH}/noise.ssrc.48000.44100.-32.wav"
+  COMMAND "${TARGET_FILE_ssrc}" --rate 44100 --bits -32 --stdin --stdout
+  INPUT_FILE "${TMP_DIR_PATH}/noise.48000.wav"
+  OUTPUT_FILE "${TMP_DIR_PATH}/noise.ssrc.48000.44100.-32.wav"
   COMMAND_ERROR_IS_FATAL ANY
   COMMAND_ECHO STDOUT
 )

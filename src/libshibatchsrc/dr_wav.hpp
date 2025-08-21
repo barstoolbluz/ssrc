@@ -342,6 +342,10 @@ namespace dr_wav {
 
     bool atEnd() { return getNFrames() == getPosition(); }
 
+    bool seek(size_t position) {
+      return  drwav_seek_to_pcm_frame(&wav, position);
+    }
+
     size_t readPCM(float *ptr, size_t nFrame) {
       return drwav_read_pcm_frames_f32(&wav, nFrame, ptr);
     }
