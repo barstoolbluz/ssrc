@@ -95,6 +95,61 @@ Convert a WAV file from 44.1kHz to 48kHz with dithering:
 ssrc --rate 48000 --dither 0 input.wav output.wav
 ```
 
+### Spectrum Analyzer (`scsa`)
+
+The project includes `scsa`, a command-line spectrum analyzer. While it can be used as a general-purpose analyzer, it is primarily designed for automated testing and verification, for example in a CI environment.
+
+#### Purpose and Features
+
+- **Automated Testing**: The primary purpose of `scsa` is to check audio spectra against predefined criteria, making it ideal for automated quality assurance in a CI/CD pipeline.
+- **High-Precision Analysis**: Unlike many standard analyzers, all internal processing is performed in double precision. This minimizes the impact of floating-point noise, allowing for highly accurate measurements.
+- **High-Resolution Windowing**: It uses a 7-term Blackman-Harris window function, which provides excellent dynamic range and frequency resolution, enabling very sharp and precise spectrum analysis.
+- **SVG Output for Debugging**: When a test fails, `scsa` can generate an SVG image of the spectrum. This visual output is extremely useful for identifying the cause of the failure. An SVG is also generated if no check file is provided, allowing `scsa` to be used as a general-purpose analyzer.
+- **Cross-Platform and Dependency-Free**: As a command-line tool, it does not rely on any GUI libraries or have OS-specific dependencies, making it highly portable and easy to integrate into various workflows.
+
+#### Usage
+
+```bash
+scsa [<options>] <source file name> <first position> <last position> <interval>
+```
+
+#### Options
+
+| Option                     | Description                                                                                    |
+|----------------------------|------------------------------------------------------------------------------------------------|
+| `--log2dftlen <log2dftlen>`| Set the log2 of the DFT length. Default: 12.                                                   |
+| `--check <check file>`     | Specify a file containing spectrum check criteria.                                             |
+| `--svgout <svg file name>` | Specify the output SVG file name for the spectrum graph.                                       |
+| `--debug`                  | Print detailed debugging information during processing.                                        |
+
+#### Check File Format
+
+The check file is a plain text file that defines the spectral criteria for the `scsa` tool. Each line in the file specifies a single constraint.
+
+- **Format**: Each constraint is defined on a new line with the following format:
+  `<low_freq> <high_freq> <comparison> <threshold_db>`
+  - `<low_freq>`: The lower bound of the frequency range in Hz (double).
+  - `<high_freq>`: The upper bound of the frequency range in Hz (double).
+  - `<comparison>`: The comparison operator, which must be either `<` (less than) or `>` (greater than).
+  - `<threshold_db>`: The threshold value in decibels (double).
+
+- **Comments**: Lines starting with a `#` character are treated as comments and are ignored. Empty lines are also ignored.
+
+- **Logic**: For a check to pass, **all** frequency components of the signal that fall within the `[low_freq, high_freq]` range must satisfy the condition.
+  - If the comparison is `<`, every spectral point in the range must be below the threshold.
+  - If the comparison is `>`, every spectral point in the range must be above the threshold.
+
+- **Example**:
+  ```
+  # This is a comment
+  # Check for stop-band attenuation
+  1 9900 < -140
+
+  # Check for pass-band flatness (hypothetical)
+  # 20 20000 > -1
+  ```
+  In this example, the tool will check if the spectrum is below -140 dB in the frequency range from 1 Hz to 9900 Hz. The second rule is commented out, so it will be ignored.
+
 ## For Developers (Library Usage)
 
 In addition to the command-line tool, SSRC provides powerful C++ and C APIs, allowing you to integrate the resampling engine directly into your own projects. It can be built as a static or shared library for native applications on Windows (without requiring MSYS/Cygwin), Linux, and other platforms.
