@@ -1,4 +1,4 @@
-add_library(shibatchsrc libssrc.cpp ssrcsoxr.cpp)
+add_library(shibatchsrc libssrc.cpp ssrcsoxr.cpp xdr_wav.cpp)
 add_dependencies(shibatchsrc ext_sleef)
 
 set_target_properties(shibatchsrc PROPERTIES

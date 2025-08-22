@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <utility>
 #include <memory>
 #include <vector>
@@ -264,7 +265,7 @@ namespace {
     while(getline(f, line)) {
       double lf, hf, thres;
       char c;
-      if (line.size() == 0 || line[0] == '#') { ln++; continue; }
+      if (line.find_first_not_of(' ') == string::npos || line[0] == '#') { ln++; continue; }
       if (sscanf(line.c_str(), "%lf %lf %c %lf", &lf, &hf, &c, &thres) == 4) {
 	if (!(c == '>' || c == '<')) throw(runtime_error((fn + ":" + to_string(ln) + " : error <>").c_str()));
 	ret.push_back(SpectrumCheckItem(lf, hf, c == '>', thres));
@@ -278,7 +279,6 @@ namespace {
 
   class SpectrumAnalyzer {
     const double fs;
-    const unsigned log2dftlen;
     const size_t dftlen;
     const vector<double> window;
 
@@ -286,7 +286,7 @@ namespace {
     double *dftbuf = nullptr;
   public:
     SpectrumAnalyzer(double fs_, unsigned log2dftlen_) :
-      fs(fs_), log2dftlen(log2dftlen_), dftlen(1ULL << log2dftlen_), window(createWindow(dftlen)) {
+      fs(fs_), dftlen(1ULL << log2dftlen_), window(createWindow(dftlen)) {
       dft    = SleefDFT_double_init1d(dftlen, NULL, NULL, SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_FORWARD  | SLEEF_MODE_NO_MT);
       dftbuf = (double *)Sleef_malloc(dftlen * sizeof(double));
     }
@@ -351,7 +351,7 @@ namespace {
 using namespace dr_wav;
 
 void showUsage(const string& argv0, const string& mes = "") {
-  cerr << ("Shibatch command line spectrum analyzer, accompanying SSRC Version " SSRC_VERSION) << endl;
+  cerr << ("Shibatch command-line spectrum analyzer (accompanying SSRC Version " SSRC_VERSION ")") << endl;
   cerr << endl;
   cerr << "usage: " << argv0 << " [<options>] <source file name> <first position> <last position> <interval>" << endl;
   cerr << endl;
@@ -389,7 +389,7 @@ bool analyzeAndCheck(WavFile &wav, SpectrumAnalyzer &ana, vector<SpectrumCheckIt
     }
   }
 
-  if (checkItems.size() == 0 || !compliant) {
+  if ((checkItems.size() == 0 || !compliant) && svgoutfn != "") {
     ofstream fout(svgoutfn);
     if (!fout.good()) throw(runtime_error(("Could not open file " + svgoutfn).c_str()));
 

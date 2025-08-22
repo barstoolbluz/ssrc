@@ -102,10 +102,10 @@ The project includes `scsa`, a command-line spectrum analyzer. While it can be u
 #### Purpose and Features
 
 - **Automated Testing**: The primary purpose of `scsa` is to check audio spectra against predefined criteria, making it ideal for automated quality assurance in a CI/CD pipeline.
+- **Cross-Platform and Dependency-Free**: As a command-line tool, it does not rely on any GUI libraries or have OS-specific dependencies, making it highly portable and easy to integrate into various workflows.
+- **SVG Output for Debugging**: When a test fails, `scsa` can generate an SVG image of the spectrum. This visual output is extremely useful for identifying the cause of the failure. An SVG is also generated if no check file is provided, allowing `scsa` to be used as a general-purpose analyzer.
 - **High-Precision Analysis**: Unlike many standard analyzers, all internal processing is performed in double precision. This minimizes the impact of floating-point noise, allowing for highly accurate measurements.
 - **High-Resolution Windowing**: It uses a 7-term Blackman-Harris window function, which provides excellent dynamic range and frequency resolution, enabling very sharp and precise spectrum analysis.
-- **SVG Output for Debugging**: When a test fails, `scsa` can generate an SVG image of the spectrum. This visual output is extremely useful for identifying the cause of the failure. An SVG is also generated if no check file is provided, allowing `scsa` to be used as a general-purpose analyzer.
-- **Cross-Platform and Dependency-Free**: As a command-line tool, it does not rely on any GUI libraries or have OS-specific dependencies, making it highly portable and easy to integrate into various workflows.
 
 #### Usage
 
