@@ -48,7 +48,7 @@ namespace shibatch {
 	}
 
 	while(nSamples > 0) {
-	  size_t nRead = inlet->read(buf.data(), std::min((nSamples + m - 1) / m, N));
+	  size_t nRead = inlet->read(buf.data(), std::min(size_t((nSamples + m - 1) / m), N));
 	  if (nRead == 0) { endReached = true; break; }
 
 	  for(size_t i=0;i < nRead-1;i++) {
