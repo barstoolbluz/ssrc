@@ -13,14 +13,14 @@ option(ENABLE_ASAN "Enable ASAN" OFF)
 
 ##
 
-set(SSRC_VERSION 2.1.4)
+set(SSRC_VERSION 2.2.0)
 
 message(STATUS "Configuring Shibatch Sampling Rate Converter ${SSRC_VERSION}")
 
 cmake_minimum_required(VERSION 3.18)
 project(SSRC VERSION ${SSRC_VERSION} LANGUAGES C CXX)
 
-add_compile_definitions(SSRC_VERSION="${SSRC_VERSION}-beta")
+add_compile_definitions(SSRC_VERSION="${SSRC_VERSION}")
 set(SSRC_SOVERSION ${SSRC_VERSION_MAJOR})
 
 #
