@@ -1,0 +1,4 @@
+# Check for stop-band attenuation for 96k -> 44.1k
+# This is a sanity check, not a golden reference.
+1 9900 < -100
+10100 22000 < -100
