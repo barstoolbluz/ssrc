@@ -19,8 +19,11 @@ add_custom_command(
   COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 48000 2 100000 0 0 --rate 48000 --bits 16 "${TMP_DIR_PATH}/noise.48000.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 44100 2 441000 10000 10000 --rate 44100 --bits -64 "${TMP_DIR_PATH}/sin10k.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 48000 2 480000 10000 10000 --rate 48000 --bits -64 "${TMP_DIR_PATH}/sin10k.48000.wav"
+  COMMAND $<TARGET_FILE:ssrc> --genSweep 96000 2 960000 10000 10000 --rate 96000 --bits -64 "${TMP_DIR_PATH}/sin10k.96000.wav"
+  COMMAND $<TARGET_FILE:ssrc> --genSweep 44100 1 441000 10000 10000 --rate 44100 --bits -64 "${TMP_DIR_PATH}/sin10k.mono.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --genImpulse 44100 1 50000 "${TMP_DIR_PATH}/impulse.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --genImpulse 48000 1 50000 "${TMP_DIR_PATH}/impulse.48000.wav"
+  COMMAND $<TARGET_FILE:ssrc> --genImpulse 44100 1 1024 "${TMP_DIR_PATH}/impulse.short.44100.wav"
   COMMENT "Generating noise.*.wav"
 )
 
@@ -66,6 +69,43 @@ foreach(PROFILE lightning fast short)
     -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
   )
 endforeach()
+
+# Added tests for --bits and --dstContainer
+add_test(NAME test_sin10k_44100_48000_24bit COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--bits\;24\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.24bit.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.24bit.wav\;100000\;460000\;10000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
+add_test(NAME test_sin10k_44100_48000_w64 COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--dstContainer\;w64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.w64.wav
+  -D COMMAND1_TO_EXECUTE=${CMAKE_COMMAND}\;-E\;echo\;w64_test_OK
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
+add_test(NAME test_sin10k_44100_48000_rf64 COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--dstContainer\;rf64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.rf64.wav
+  -D COMMAND1_TO_EXECUTE=${CMAKE_COMMAND}\;-E\;echo\;rf64_test_OK
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
+add_test(NAME test_sin10k_96000_44100_standard COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.96000.wav\;${TMP_DIR_PATH}/sin10k.96000.44100.standard.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB-96k-44k1.scsa\;${TMP_DIR_PATH}/sin10k.96000.44100.standard.wav\;100000\;420000\;10000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
+add_test(NAME test_sin10k_mono_44100_48000_standard COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.mono.44100.wav\;${TMP_DIR_PATH}/sin10k.mono.44100.48000.standard.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.mono.44100.48000.standard.wav\;100000\;460000\;10000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
+add_test(NAME test_short_impulse_44100_48000_stability COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;${TMP_DIR_PATH}/impulse.short.44100.wav\;${TMP_DIR_PATH}/impulse.short.44100.48000.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--log2dftlen\;8\;--svgout\;${TMP_DIR_PATH}/impulse.short.svg\;${TMP_DIR_PATH}/impulse.short.44100.48000.wav\;512
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
 
 foreach(FS 44100 48000)
   foreach(BITDEPTH 8 16)
