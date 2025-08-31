@@ -107,7 +107,7 @@ endif()
 # Include SLEEF as a submodule
 
 set(SLEEF_MINIMUM_VERSION 4.0.0)
-set(SLEEF_GIT_TAG "ae6ad6cdfc1cb837685a8f40bb1447afce49ded2")
+set(SLEEF_GIT_TAG "7eee766f6b53349292ff6c1f57a91207d71abef1")
 
 set(SLEEF_SOURCE_DIR "${PROJECT_SOURCE_DIR}/submodules/sleef")
 set(SLEEF_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}")
