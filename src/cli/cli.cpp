@@ -442,7 +442,7 @@ struct Pipeline {
 
       for(int i=0;i<nch;i++) {
 	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
-					     profile.log2dftfilterlen, profile.aa, profile.guard);
+					     profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
 	out[i] = ssrc;
 	delay = ssrc->getDelay();
 
@@ -471,7 +471,7 @@ struct Pipeline {
 	}
 
 	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
-					     profile.log2dftfilterlen, profile.aa, profile.guard);
+					     profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
 
 	delay = ssrc->getDelay();
 

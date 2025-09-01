@@ -11,7 +11,7 @@ Shibatch Sample Rate Converter (SSRC) is a fast and high-quality sample rate con
 ## Features
 
 - **High-Quality Conversion**: Achieves excellent audio quality with minimal artifacts.
-- **FFT-Based Algorithm**: Utilizes a unique FFT-based algorithm for precise and efficient sample rate conversion.
+- **FFT-Based Algorithm**: Utilizes a unique [FFT-based algorithm](ALGORITHM.md) for precise and efficient sample rate conversion.
 - **SleefDFT Integration**: Leverages [SleefDFT](https://sleef.org/dft.xhtml), a product of the [SLEEF Project](https://sleef.org/), for fast Fourier transforms (FFT), enabling high-speed conversions.
 - **SIMD Optimization**: Takes advantage of SIMD (Single Instruction, Multiple Data) techniques for accelerated processing. It is capable of high-speed conversion using [AVX-512](https://en.wikipedia.org/wiki/AVX-512).
 - **Dithering Functionality**: Supports various dithering techniques, including noise shaping based on the absolute threshold of hearing (ATH) curve.

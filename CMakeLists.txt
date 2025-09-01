@@ -13,9 +13,9 @@ option(ENABLE_ASAN "Enable ASAN" OFF)
 
 ##
 
-set(SSRC_VERSION 2.2.1)
+set(SSRC_VERSION 2.2.2)
 
-message(STATUS "Configuring Shibatch Sampling Rate Converter ${SSRC_VERSION}")
+message(STATUS "Configuring Shibatch Sample Rate Converter ${SSRC_VERSION}")
 
 cmake_minimum_required(VERSION 3.18)
 project(SSRC VERSION ${SSRC_VERSION} LANGUAGES C CXX)
