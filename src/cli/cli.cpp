@@ -16,6 +16,8 @@
 #define M_PI 3.1415926535897932384626433832795028842
 #endif
 
+#include "ArrayQueue.hpp"
+
 #include "shibatch/ssrc.hpp"
 #include "shibatch/shapercoefs.h"
 
@@ -25,6 +27,7 @@
 
 using namespace std;
 using namespace ssrc;
+using namespace shibatch;
 
 struct ConversionProfile {
   unsigned log2dftfilterlen;
@@ -132,6 +135,74 @@ class RectangularRNG : public DoubleRNG {
 public:
   RectangularRNG(double min_, double max_, uint64_t seed) : min(min_), max(max_), rng(seed) {}
   double nextDouble() { return min + dist(rng) * (max - min); }
+};
+
+template<typename T>
+class ChannelMixer : public ssrc::OutletProvider<T> {
+  class Outlet : public ssrc::StageOutlet<T> {
+    ChannelMixer &parent;
+    ArrayQueue<T> queue;
+  public:
+    Outlet(ChannelMixer &parent_) : parent(parent_) {}
+
+    bool atEnd() { return queue.size() == 0 && parent.allInputAtEnd(); }
+
+    size_t read(T *ptr, size_t n) {
+      size_t s = queue.size();
+      if (s < n) s += parent.refill(n - s);
+      if (s > n) s = n;
+      return queue.read(ptr, s);
+    }
+
+    friend ChannelMixer;
+  };
+    
+  shared_ptr<ssrc::OutletProvider<T>> in;
+  const vector<vector<double>> matrix;
+  WavFormat format;
+  const unsigned snch, dnch;
+  vector<shared_ptr<Outlet>> out;
+  vector<vector<T>> buf;
+
+  size_t refill(size_t n) {
+    for(unsigned c=0;c<buf.size();c++) buf[c].resize(n);
+
+    size_t nRead = 0;
+    for(unsigned ic=0;ic<snch;ic++) {
+      size_t z = in->getOutlet(ic)->read(buf[ic].data(), n);
+      memset(buf[ic].data() + z, 0, (n - z) * sizeof(T));
+      nRead = max(nRead, z);
+    }
+
+    vector<T> v(dnch);
+    for(size_t pos = 0;pos < nRead;pos++) {
+      for(unsigned oc = 0;oc < dnch;oc++) {
+	double s = 0;
+	for(unsigned ic = 0;ic < snch;ic++) s += buf[ic][pos] * matrix[oc][ic];
+	v[oc] = s;
+      }
+      for(unsigned oc = 0;oc < dnch;oc++) buf[oc][pos] = v[oc];
+    }
+
+    for(unsigned oc = 0;oc < dnch;oc++) out[oc]->queue.write(buf[oc].data(), nRead);
+
+    return nRead;
+  }
+
+  bool allInputAtEnd() {
+    for(unsigned ic = 0;ic < snch;ic++) if (!in->getOutlet(ic)->atEnd()) return false;
+    return true;
+  }
+public:
+  ChannelMixer(shared_ptr<ssrc::OutletProvider<T>> in_, const vector<vector<double>>& matrix_) :
+    in(in_), matrix(matrix_), format(in_->getFormat()), snch(format.channels), dnch(matrix.size()) {
+    format.channels = dnch;
+    buf.resize(max(snch, dnch));
+    for(unsigned i=0;i<dnch;i++) out.push_back(make_shared<Outlet>(*this));
+  }
+
+  shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c) { return out[c]; }
+  WavFormat getFormat() { return format; }
 };
 
 template<typename T>
@@ -278,6 +349,7 @@ struct Pipeline {
   string argv0, srcfn, dstfn, profileName, dstContainerName;
   uint64_t dstChannelMask;
   int64_t rate, bits, dither, pdf;
+  const vector<vector<double>>& mixMatrix;
   uint64_t seed;
   double att, peak;
   bool quiet, debug;
@@ -293,13 +365,13 @@ struct Pipeline {
 
   Pipeline(const string& argv0_, const string &srcfn_, const string &dstfn_,
 	   const string &profileName_, const string &dstContainerName_, uint64_t dstChannelMask_,
-	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_,
+	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_, const vector<vector<double>>& mixMatrix_,
 	   uint64_t seed_, double att_, double peak_, bool quiet_, bool debug_,
 	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
 	   double sweepStart_, double sweepEnd_, int generatorNch_, int generatorFs_, ConversionProfile profile_) :
     argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
     profileName(profileName_), dstContainerName(dstContainerName_), dstChannelMask(dstChannelMask_),
-    rate(rate_), bits(bits_), dither(dither_), pdf(pdf_),
+    rate(rate_), bits(bits_), dither(dither_), pdf(pdf_), mixMatrix(mixMatrix_),
     seed(seed_), att(att_), peak(peak_), quiet(quiet_), debug(debug_),
     src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
     sweepStart(sweepStart_), sweepEnd(sweepEnd_), generatorNch(generatorNch_), generatorFs(generatorFs_), profile(profile_) {}
@@ -312,30 +384,30 @@ struct Pipeline {
     const int32_t clipMax = bits != 8 ? +(1LL << (bits - 1)) - 1 : 0xff;
     const int32_t offset  = bits != 8 ? 0 : 0x80;
 
-    shared_ptr<OutletProvider<REAL>> reader;
+    shared_ptr<OutletProvider<REAL>> origin;
 
     switch(src) {
     case FILEIN:
-      reader = make_shared<WavReader<REAL>>(srcfn);
+      origin = make_shared<WavReader<REAL>>(srcfn);
       break;
     case STDIN:
-      reader = make_shared<WavReader<REAL>>();
+      origin = make_shared<WavReader<REAL>>();
       break;
     case IMPULSE:
-      reader = make_shared<ImpulseGenerator<REAL>>
+      origin = make_shared<ImpulseGenerator<REAL>>
 	(WavFormat(WavFormat::IEEE_FLOAT, generatorNch, generatorFs, 32), 0.5, impulsePeriod, impulsePeriod * 2);
       break;
     case SWEEP:
-      reader = make_shared<SweepGenerator<REAL>>
+      origin = make_shared<SweepGenerator<REAL>>
 	(WavFormat(WavFormat::IEEE_FLOAT, generatorNch, generatorFs, 32), sweepStart, sweepEnd, 0.5, sweepLength);
       break;
     }
 
-    const WavFormat srcFormat = reader->getFormat();
-    const ContainerFormat srcContainer = reader->getContainer();
+    const WavFormat srcFormat = origin->getFormat();
+    const ContainerFormat srcContainer = origin->getContainer();
     const int sfs = srcFormat.sampleRate;
     const int dfs = rate < 0 ? srcFormat.sampleRate : rate;
-    const int nch = srcFormat.channels;
+    const int snch = srcFormat.channels, dnch = mixMatrix.size() == 0 ? snch : mixMatrix.size();
 
     if (dstContainerName == "" && srcContainer.c == 0) dstContainerName = "RIFF";
     if (dstContainerName == "" && srcContainer.c != 0) dstContainerName = to_string(srcContainer);
@@ -351,12 +423,15 @@ struct Pipeline {
     case WavFormat::PCM:
     case WavFormat::IEEE_FLOAT:
       dstFormat = bits < 0 ?
-	WavFormat(WavFormat::IEEE_FLOAT, srcFormat.channels, dfs, -bits) :
-	WavFormat(WavFormat::PCM       , srcFormat.channels, dfs,  bits);
+	WavFormat(WavFormat::IEEE_FLOAT, dnch, dfs, -bits) :
+	WavFormat(WavFormat::PCM       , dnch, dfs,  bits);
       break;
     case WavFormat::EXTENSIBLE:
+      if (dstChannelMask == ~0ULL && mixMatrix.size() != 0)
+	showUsage(argv0, "You have to specify --channelMask because you specified --mixChannels and the source format tag is extensible");
+
       dstFormat =
-	WavFormat(WavFormat::EXTENSIBLE, srcFormat.channels, dfs, abs(bits), srcFormat.channelMask,
+	WavFormat(WavFormat::EXTENSIBLE, dnch, dfs, abs(bits), srcFormat.channelMask,
 		  bits < 0 ? WavFormat::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT : WavFormat::KSDATAFORMAT_SUBTYPE_PCM);
       if (dstChannelMask != ~0ULL) dstFormat.channelMask = dstChannelMask;
       break;
@@ -386,7 +461,7 @@ struct Pipeline {
     if (debug) {
       cerr << "srcfn = "        << srcfn << endl;
       cerr << "sfs = "          << sfs << endl;
-      cerr << "nch = "          << nch << endl;
+      cerr << "snch = "         << snch << endl;
       cerr << "srcContainer = " << to_string(srcContainer) << endl;
       cerr << "srcFormatTag = ";
       switch(srcFormat.formatTag) {
@@ -400,9 +475,22 @@ struct Pipeline {
 
       cerr << "dstfn = "        << dstfn << endl;
       cerr << "dfs = "          << dfs << endl;
+      cerr << "dnch = "         << dnch << endl;
       cerr << "dstContainer = " << to_string(dstContainer) << endl;
       cerr << "bits = "         << bits << endl;
       cerr << endl;
+
+      if (mixMatrix.size() != 0) {
+	cerr << "mixMatrix = ";
+	for(auto r : mixMatrix) {
+	  cerr << "[";
+	  for(auto c : r) {
+	    cerr << c << ",";
+	  }
+	  cerr << "];";
+	}
+	cerr << endl << endl;
+      }
 
       cerr << "profileName = "  << profileName << endl;
       cerr << "dftfilterlen = " << (1LL << profile.log2dftfilterlen) << endl;
@@ -434,15 +522,19 @@ struct Pipeline {
       timeStart = timeus();
     }
 
+    shared_ptr<OutletProvider<REAL>> in = origin;
+
+    if (mixMatrix.size() != 0) in = make_shared<ChannelMixer<REAL>>(in, mixMatrix);
+
     double delay = 0;
 
     if (shaperid == -1 || bits < 0) {
-      vector<shared_ptr<ssrc::StageOutlet<REAL>>> out(nch);
+      vector<shared_ptr<ssrc::StageOutlet<REAL>>> out(dnch);
       size_t nFrames = 0;
 
-      for(int i=0;i<nch;i++) {
-	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
-					     profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
+      for(int i=0;i<dnch;i++) {
+	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
 	out[i] = ssrc;
 	delay = ssrc->getDelay();
 
@@ -459,10 +551,10 @@ struct Pipeline {
 
       writer->execute();
     } else {
-      vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(nch);
+      vector<shared_ptr<ssrc::StageOutlet<int32_t>>> out(dnch);
       size_t nFrames = 0;
 
-      for(int i=0;i<nch;i++) {
+      for(int i=0;i<dnch;i++) {
 	std::shared_ptr<DoubleRNG> rng;
 	if (pdf == 0) {
 	  rng = createTriangularRNG(peak, seed + i);
@@ -470,8 +562,8 @@ struct Pipeline {
 	  rng = make_shared<RectangularRNG>(-peak, peak, seed + i);
 	}
 
-	auto ssrc = make_shared<SSRC<REAL>>(reader->getOutlet(i), sfs, dfs,
-					     profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
+	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
 
 	delay = ssrc->getDelay();
 
@@ -500,6 +592,36 @@ struct Pipeline {
   }
 };
 
+vector<vector<double>> parseMixString(const string &s) {
+  vector<vector<double>> ret;
+  const char* p = s.c_str();
+  size_t nc = 0;
+
+  vector<double> r;
+  for(;;) {
+    char *q;
+    double d = strtod(p, &q);
+    if (p == q) throw(runtime_error(("parseMixString : syntax error : " + s.substr(p - s.c_str())).c_str()));
+    r.push_back(d);
+    switch(*q) {
+    case ',': break;
+    case ';':
+      if (nc == 0) nc = r.size();
+      if (nc != r.size()) throw(runtime_error("parseMixString : inconsistent number of column"));
+      ret.push_back(r);
+      r.clear();
+      break;
+    case '\0':
+      if (nc == 0) nc = r.size();
+      if (nc != r.size()) throw(runtime_error("parseMixString : inconsistent number of column"));
+      ret.push_back(r);
+      return ret;
+    default: throw(runtime_error(("parseMixString : syntax error : " + s.substr(q - s.c_str())).c_str()));
+    }
+    p = q + 1;
+  }
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) showUsage(argv[0], "");
 
@@ -507,6 +629,7 @@ int main(int argc, char **argv) {
   int64_t rate = -1, bits = 16, dither = -1, pdf = 0;
   uint64_t seed = ~0ULL, dstChannelMask = ~0ULL;
   double att = 0, peak = 1.0;
+  vector<vector<double>> mixMatrix;
   bool quiet = false, debug = false;
 
   enum SrcType src = FILEIN;
@@ -647,6 +770,14 @@ int main(int argc, char **argv) {
       if (p == argv[nextArg+1] || *p)
 	showUsage(argv[0], "A positive integer is expected after --channelMask.");
       nextArg++;
+    } else if (string(argv[nextArg]) == "--mixChannels") {
+      if (nextArg+1 >= argc) showUsage(argv[0]);
+      try {
+	mixMatrix = parseMixString(argv[nextArg+1]);
+      } catch(exception &ex) {
+	showUsage(argv[0], ex.what());
+      }
+      nextArg++;
     } else if (string(argv[nextArg]) == "--tmpfile") {
       showUsage(argv[0], "--tmpfile option is no longer available.");
     } else if (string(argv[nextArg]) == "--twopass") {
@@ -705,14 +836,14 @@ int main(int argc, char **argv) {
   try {
     if (!profile.doublePrecision) {
       Pipeline<float> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
-			       dstChannelMask, rate, bits, dither, pdf,
+			       dstChannelMask, rate, bits, dither, pdf, mixMatrix,
 			       seed, att, peak, quiet, debug,
 			       src, dst, impulsePeriod, sweepLength,
 			       sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();
     } else {
       Pipeline<double> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
-				dstChannelMask, rate, bits, dither, pdf,
+				dstChannelMask, rate, bits, dither, pdf, mixMatrix,
 				seed, att, peak, quiet, debug,
 				src, dst, impulsePeriod, sweepLength,
 				sweepStart, sweepEnd, generatorNch, generatorFs, profile);
