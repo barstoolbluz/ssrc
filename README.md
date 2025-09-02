@@ -61,6 +61,7 @@ cat input.wav | ssrc --stdin [options] --stdout > output.wav
 | `--att <attenuation>`      | Attenuate the output signal in decibels (dB). Default: `0`.                                    |
 | `--bits <number of bits>`  | Specify the output quantization bit depth. Common values are `16`, `24`, `32`. Use `-32` or `-64` for 32-bit or 64-bit IEEE floating-point output. Default: `16`. |
 | `--dither <type>`          | Select a dithering/noise shaping algorithm by ID. Use `--dither help` to see all available types for different sample rates. |
+| `--mixChannels <matrix>`   | Mix channels to produce a different number of output channels than the input. For example, `--mixChannels '0.5,0.5'` will mix channels 0 and 1 with a gain of 0.5 each, creating a mono output from a stereo input. `--mixChannels '1;1'` will duplicate a mono input channel to create a 2-channel stereo output. |
 | `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering. `0`: Rectangular, `1`: Triangular. Default: `0`. |
 | `--profile <name>`         | Select a conversion quality/speed profile. Use `--profile help` for details. Default: `standard`. |
 | `--dstContainer <name>`    | Specify the output file container type (`riff`, `w64`, `rf64`, etc.). Use `--dstContainer help` for options. Defaults to the source container or `riff`. |

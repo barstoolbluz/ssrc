@@ -104,6 +104,9 @@ void showUsage(const string& argv0, const string& mes = "") {
   cerr << "                                       0    : Low intensity ATH-based noise shaping" << endl;
   cerr << "                                       98   : Triangular noise shaping" << endl;
   cerr << "                                       help : Show all available options" << endl;
+  cerr << "          --mixChannels <matrix>     Mix channels" << endl;
+  cerr << "                                       '0.5,0.5' : stereo to mono" << endl;
+  cerr << "                                       '1;1'     : mono to stereo" << endl;
   cerr << "          --pdf <type> [<amp>]       Select a probability distribution function for dithering" << endl;
   cerr << "                                       0 : Rectangular" << endl;
   cerr << "                                       1 : Triangular" << endl;
