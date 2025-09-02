@@ -409,6 +409,9 @@ struct Pipeline {
     const int dfs = rate < 0 ? srcFormat.sampleRate : rate;
     const int snch = srcFormat.channels, dnch = mixMatrix.size() == 0 ? snch : mixMatrix.size();
 
+    if (mixMatrix.size() != 0 && mixMatrix[0].size() != snch)
+      showUsage(argv0, "The number of channels in the source and the matrix you specified with --mixChannels do not match");
+
     if (dstContainerName == "" && srcContainer.c == 0) dstContainerName = "RIFF";
     if (dstContainerName == "" && srcContainer.c != 0) dstContainerName = to_string(srcContainer);
 
