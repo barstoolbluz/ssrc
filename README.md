@@ -61,7 +61,7 @@ cat input.wav | ssrc --stdin [options] --stdout > output.wav
 | `--att <attenuation>`      | Attenuate the output signal in decibels (dB). Default: `0`.                                    |
 | `--bits <number of bits>`  | Specify the output quantization bit depth. Common values are `16`, `24`, `32`. Use `-32` or `-64` for 32-bit or 64-bit IEEE floating-point output. Default: `16`. |
 | `--dither <type>`          | Select a dithering/noise shaping algorithm by ID. Use `--dither help` to see all available types for different sample rates. |
-| `--mixChannels <matrix>`   | Mix channels to produce a different number of output channels than the input. For example, `--mixChannels '0.5,0.5'` will mix channels 0 and 1 with a gain of 0.5 each, creating a mono output from a stereo input. `--mixChannels '1;1'` will duplicate a mono input channel to create a 2-channel stereo output. |
+| `--mixChannels <matrix>`   | Mix, re-route, or change the number of channels. See the "Channel Mixing" section below for details and examples. |
 | `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering. `0`: Rectangular, `1`: Triangular. Default: `0`. |
 | `--profile <name>`         | Select a conversion quality/speed profile. Use `--profile help` for details. Default: `standard`. |
 | `--dstContainer <name>`    | Specify the output file container type (`riff`, `w64`, `rf64`, etc.). Use `--dstContainer help` for options. Defaults to the source container or `riff`. |
@@ -86,6 +86,39 @@ Profiles allow you to balance between conversion speed and quality (stop-band at
 | `lightning`  | 256        | 96 dB       | single    | Low latency, suitable for real-time uses. |
 
 You can see all profiles and their technical details by running `ssrc --profile help`.
+
+
+#### Channel Mixing (`--mixChannels`)
+
+The `--mixChannels` option allows you to mix, re-route, or change the number of channels using a matrix string.
+
+- **Syntax**: The matrix string is a series of numbers separated by commas (`,`) and semicolons (`;`).
+  - Commas (`,`) separate the gain values for each column in a row.
+  - Semicolons (`;`) separate the rows.
+- **Logic**:
+  - The number of rows in the matrix defines the number of output channels.
+  - The number of columns in the matrix must match the number of input channels.
+
+##### Example 1: Stereo to Mono Downmix
+To combine a 2-channel stereo input into a 1-channel mono output, you can use a 1-row, 2-column matrix. The standard formula is `Mono = 0.5 * Left + 0.5 * Right`.
+```bash
+--mixChannels '0.5,0.5'
+```
+
+##### Example 2: Mono to Stereo
+To duplicate a 1-channel mono input into a 2-channel stereo output, you can use a 2-row, 1-column matrix.
+```bash
+--mixChannels '1;1'
+```
+This sets both the left and right output channels to be equal to the mono input channel.
+
+##### Example 3: Swapping Stereo Channels
+To swap the left and right channels of a stereo file, you need a 2x2 matrix. The goal is to make the new left channel equal to the old right channel, and the new right channel equal to the old left channel.
+```bash
+--mixChannels '0,1;1,0'
+```
+- The first row `0,1` means `Output0 = (0 * Input0) + (1 * Input1)`.
+- The second row `1,0` means `Output1 = (1 * Input0) + (0 * Input1)`.
 
 
 #### Example
