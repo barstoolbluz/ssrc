@@ -463,6 +463,148 @@ auto gain_stage = std::make_shared<GainStage<float>>(resampler, 0.5);
 // writer->execute();
 ```
 
+### 2.7. Manipulating Channels with ChannelMixer
+
+While the standard pipeline processes each channel independently, there are many cases where you need to combine, re-route, or change the number of channels. This is the role of the `shibatch::ChannelMixerStage<T>` stage. It takes any number of input channels and produces any number of output channels, with the transformation being defined by a mixing matrix.
+
+Common use cases include:
+-   **Downmixing**: Converting a multi-channel source (e.g., 5.1 surround, stereo) to a format with fewer channels (e.g., stereo, mono).
+-   **Upmixing**: Creating a multi-channel output from a source with fewer channels (e.g., converting a stereo track to a "pseudo-5.1" track).
+-   **Channel Re-routing**: Swapping the left and right channels, or re-ordering channels in a multi-channel file.
+-   **Applying Gain**: Applying a specific gain to each channel independently.
+
+The `ChannelMixer` is a processing stage that is typically inserted early in the pipeline, often right after the `WavReader`, before resampling occurs. This is usually more efficient, as it means the resampling stage only has to process the final number of channels.
+
+**Pipeline with ChannelMixer (Stereo to Mono Downmix):**
+
+```text
+                                 +-------------------------+
+                             +-->| ChannelMixer<T> (Mono)  |--> SSRC<T> --> ...
+                             |   +-------------------------+
+                             |
++-----------+     +----------+
+| WavReader |-->--| (Fork)   |
++-----------+     +----------+
+                             |
+                             |   (Input Channel 1 is also
+                             +-->  fed into the mixer, but
+                                   is not an independent
+                                   output from this stage)
+```
+
+#### The Mixing Matrix
+
+The core of the `ChannelMixer` is the matrix, which you provide to its constructor as a `std::vector<std::vector<double>>`. This matrix defines exactly how the input channels are combined to create the output channels.
+
+-   The **number of rows** in the matrix determines the **number of output channels**.
+-   The **number of columns** in each row must equal the **number of input channels**.
+
+The value at `matrix[out_channel][in_channel]` is the gain (multiplier) applied to the input channel's signal before it is summed into the output channel's signal.
+
+**Formula:**
+`output[out_ch] = sum(input[in_ch] * matrix[out_ch][in_ch] for all in_ch)`
+
+**Example 1: Stereo to Mono Downmix**
+
+To convert a 2-channel stereo input to a 1-channel mono output, you need a matrix with 1 row and 2 columns. A standard downmix formula is `Mono = 0.5 * Left + 0.5 * Right`.
+
+The corresponding matrix would be:
+```cpp
+std::vector<std::vector<double>> matrix = {
+    {0.5, 0.5} // Output Channel 0 = 0.5 * Input 0 + 0.5 * Input 1
+};
+```
+
+**Example 2: Swapping Stereo Channels**
+
+To swap the left and right channels of a 2-channel input, you need a 2x2 matrix.
+
+-   Output 0 (new Left) should be 1.0 * Input 1 (old Right).
+-   Output 1 (new Right) should be 1.0 * Input 0 (old Left).
+
+The matrix would be:
+```cpp
+std::vector<std::vector<double>> matrix = {
+    {0.0, 1.0}, // Output 0 = 0.0 * Input 0 + 1.0 * Input 1
+    {1.0, 0.0}  // Output 1 = 1.0 * Input 0 + 0.0 * Input 1
+};
+```
+
+#### Complete Example: Stereo to Mono Conversion
+
+Here is a full example that demonstrates how to read a stereo WAV file, downmix it to mono using the `ChannelMixer`, resample the mono signal, and write the result to a new WAV file.
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <memory>
+#include <stdexcept>
+#include "shibatch/ssrc.hpp"
+
+void stereo_to_mono_conversion(const std::string& in_path, const std::string& out_path, int dstRate) {
+    try {
+        // 1. Set up the reader
+        auto reader = std::make_shared<ssrc::WavReader<float>>(in_path);
+        ssrc::WavFormat srcFormat = reader->getFormat();
+
+        if (srcFormat.channels != 2) {
+            throw std::runtime_error("Input file must be stereo.");
+        }
+
+        // 2. Define the mixing matrix for stereo-to-mono
+        std::vector<std::vector<double>> mix_matrix = {
+            {0.5, 0.5} // Mono = 0.5 * Left + 0.5 * Right
+        };
+
+        // 3. Create the ChannelMixer stage
+        // The mixer takes the WavReader as its input.
+        auto mixer = std::make_shared<shibatch::ChannelMixerStage<float>>(reader, mix_matrix);
+
+        // 4. Define destination format
+        // The number of channels for the output is now determined by the mixer.
+        ssrc::WavFormat dstFormat(ssrc::WavFormat::PCM, mixer->getFormat().channels, dstRate, 24);
+        ssrc::ContainerFormat dstContainer(ssrc::ContainerFormat::RIFF);
+
+        // 5. Create a resampler for each output channel of the mixer
+        // In this case, there is only one channel (mono).
+        std::vector<std::shared_ptr<ssrc::StageOutlet<float>>> resampler_outlets;
+        for (uint32_t i = 0; i < mixer->getFormat().channels; ++i) {
+            auto resampler = std::make_shared<ssrc::SSRC<float>>(
+                mixer->getOutlet(i),    // Input is now the mixer's outlet
+                srcFormat.sampleRate,
+                dstRate,
+                14,   // "standard" profile
+                145,  // "standard" profile
+                2.0   // "standard" profile
+            );
+            resampler_outlets.push_back(resampler);
+        }
+
+        // 6. Set up the writer
+        auto writer = std::make_shared<ssrc::WavWriter<float>>(out_path, dstFormat, dstContainer, resampler_outlets);
+
+        // 7. Execute the entire process
+        std::cout << "Converting " << in_path << " (stereo) to " << out_path << " (mono)..." << std::endl;
+        writer->execute();
+        std::cout << "Conversion complete." << std::endl;
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
+}
+
+int main(int argc, char **argv) {
+  if (argc == 4) {
+    stereo_to_mono_conversion(argv[1], argv[2], atoi(argv[3]));
+    return 0;
+  }
+
+  std::cerr << "Usage : " << argv[0] << " <input_stereo.wav> <output_mono.wav> <new_rate>" << std::endl;
+
+  return -1;
+}
+```
+
 ## 3. C API (`libssrc-soxr`)
 
 In addition to the C++ template library, `ssrc` provides a C-language API with a calling convention somewhat similar to the popular `libsoxr`. This API is easier to integrate into non-C++ projects and provides a more straightforward, stateful interface for resampling.
@@ -648,144 +790,3 @@ int main(int argc, char *argv[]) {
 }
 ```
 
-### 2.7. Manipulating Channels with ChannelMixer
-
-While the standard pipeline processes each channel independently, there are many cases where you need to combine, re-route, or change the number of channels. This is the role of the `shibatch::ChannelMixerStage<T>` stage. It takes any number of input channels and produces any number of output channels, with the transformation being defined by a mixing matrix.
-
-Common use cases include:
--   **Downmixing**: Converting a multi-channel source (e.g., 5.1 surround, stereo) to a format with fewer channels (e.g., stereo, mono).
--   **Upmixing**: Creating a multi-channel output from a source with fewer channels (e.g., converting a stereo track to a "pseudo-5.1" track).
--   **Channel Re-routing**: Swapping the left and right channels, or re-ordering channels in a multi-channel file.
--   **Applying Gain**: Applying a specific gain to each channel independently.
-
-The `ChannelMixer` is a processing stage that is typically inserted early in the pipeline, often right after the `WavReader`, before resampling occurs. This is usually more efficient, as it means the resampling stage only has to process the final number of channels.
-
-**Pipeline with ChannelMixer (Stereo to Mono Downmix):**
-
-```text
-                                 +-------------------------+
-                             +-->| ChannelMixer<T> (Mono)  |--> SSRC<T> --> ...
-                             |   +-------------------------+
-                             |
-+-----------+     +----------+
-| WavReader |-->--| (Fork)   |
-+-----------+     +----------+
-                             |
-                             |   (Input Channel 1 is also
-                             +-->  fed into the mixer, but
-                                   is not an independent
-                                   output from this stage)
-```
-
-#### The Mixing Matrix
-
-The core of the `ChannelMixer` is the matrix, which you provide to its constructor as a `std::vector<std::vector<double>>`. This matrix defines exactly how the input channels are combined to create the output channels.
-
--   The **number of rows** in the matrix determines the **number of output channels**.
--   The **number of columns** in each row must equal the **number of input channels**.
-
-The value at `matrix[out_channel][in_channel]` is the gain (multiplier) applied to the input channel's signal before it is summed into the output channel's signal.
-
-**Formula:**
-`output[out_ch] = sum(input[in_ch] * matrix[out_ch][in_ch] for all in_ch)`
-
-**Example 1: Stereo to Mono Downmix**
-
-To convert a 2-channel stereo input to a 1-channel mono output, you need a matrix with 1 row and 2 columns. A standard downmix formula is `Mono = 0.5 * Left + 0.5 * Right`.
-
-The corresponding matrix would be:
-```cpp
-std::vector<std::vector<double>> matrix = {
-    {0.5, 0.5} // Output Channel 0 = 0.5 * Input 0 + 0.5 * Input 1
-};
-```
-
-**Example 2: Swapping Stereo Channels**
-
-To swap the left and right channels of a 2-channel input, you need a 2x2 matrix.
-
--   Output 0 (new Left) should be 1.0 * Input 1 (old Right).
--   Output 1 (new Right) should be 1.0 * Input 0 (old Left).
-
-The matrix would be:
-```cpp
-std::vector<std::vector<double>> matrix = {
-    {0.0, 1.0}, // Output 0 = 0.0 * Input 0 + 1.0 * Input 1
-    {1.0, 0.0}  // Output 1 = 1.0 * Input 0 + 0.0 * Input 1
-};
-```
-
-#### Complete Example: Stereo to Mono Conversion
-
-Here is a full example that demonstrates how to read a stereo WAV file, downmix it to mono using the `ChannelMixer`, resample the mono signal, and write the result to a new WAV file.
-
-```cpp
-#include <iostream>
-#include <vector>
-#include <memory>
-#include <stdexcept>
-#include "shibatch/ssrc.hpp"
-
-void stereo_to_mono_conversion(const std::string& in_path, const std::string& out_path, int dstRate) {
-    try {
-        // 1. Set up the reader
-        auto reader = std::make_shared<ssrc::WavReader<float>>(in_path);
-        ssrc::WavFormat srcFormat = reader->getFormat();
-
-        if (srcFormat.channels != 2) {
-            throw std::runtime_error("Input file must be stereo.");
-        }
-
-        // 2. Define the mixing matrix for stereo-to-mono
-        std::vector<std::vector<double>> mix_matrix = {
-            {0.5, 0.5} // Mono = 0.5 * Left + 0.5 * Right
-        };
-
-        // 3. Create the ChannelMixer stage
-        // The mixer takes the WavReader as its input.
-        auto mixer = std::make_shared<shibatch::ChannelMixerStage<float>>(reader, mix_matrix);
-
-        // 4. Define destination format
-        // The number of channels for the output is now determined by the mixer.
-        ssrc::WavFormat dstFormat(ssrc::WavFormat::PCM, mixer->getFormat().channels, dstRate, 24);
-        ssrc::ContainerFormat dstContainer(ssrc::ContainerFormat::RIFF);
-
-        // 5. Create a resampler for each output channel of the mixer
-        // In this case, there is only one channel (mono).
-        std::vector<std::shared_ptr<ssrc::StageOutlet<float>>> resampler_outlets;
-        for (uint32_t i = 0; i < mixer->getFormat().channels; ++i) {
-            auto resampler = std::make_shared<ssrc::SSRC<float>>(
-                mixer->getOutlet(i),    // Input is now the mixer's outlet
-                srcFormat.sampleRate,
-                dstRate,
-                14,   // "standard" profile
-                145,  // "standard" profile
-                2.0   // "standard" profile
-            );
-            resampler_outlets.push_back(resampler);
-        }
-
-        // 6. Set up the writer
-        auto writer = std::make_shared<ssrc::WavWriter<float>>(out_path, dstFormat, dstContainer, resampler_outlets);
-
-        // 7. Execute the entire process
-        std::cout << "Converting " << in_path << " (stereo) to " << out_path << " (mono)..." << std::endl;
-        writer->execute();
-        std::cout << "Conversion complete." << std::endl;
-
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
-}
-
-int main(int argc, char **argv) {
-  if (argc == 4) {
-    stereo_to_mono_conversion(argv[1], argv[2], atoi(argv[3]));
-    return 0;
-  }
-
-  std::cerr << "Usage : " << argv[0] << " <input_stereo.wav> <output_mono.wav> <new_rate>" << std::endl;
-
-  return -1;
-}
-```
