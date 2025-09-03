@@ -141,74 +141,6 @@ public:
 };
 
 template<typename T>
-class ChannelMixer : public ssrc::OutletProvider<T> {
-  class Outlet : public ssrc::StageOutlet<T> {
-    ChannelMixer &parent;
-    ArrayQueue<T> queue;
-  public:
-    Outlet(ChannelMixer &parent_) : parent(parent_) {}
-
-    bool atEnd() { return queue.size() == 0 && parent.allInputAtEnd(); }
-
-    size_t read(T *ptr, size_t n) {
-      size_t s = queue.size();
-      if (s < n) s += parent.refill(n - s);
-      if (s > n) s = n;
-      return queue.read(ptr, s);
-    }
-
-    friend ChannelMixer;
-  };
-    
-  shared_ptr<ssrc::OutletProvider<T>> in;
-  const vector<vector<double>> matrix;
-  WavFormat format;
-  const unsigned snch, dnch;
-  vector<shared_ptr<Outlet>> out;
-  vector<vector<T>> buf;
-
-  size_t refill(size_t n) {
-    for(unsigned c=0;c<buf.size();c++) buf[c].resize(n);
-
-    size_t nRead = 0;
-    for(unsigned ic=0;ic<snch;ic++) {
-      size_t z = in->getOutlet(ic)->read(buf[ic].data(), n);
-      memset(buf[ic].data() + z, 0, (n - z) * sizeof(T));
-      nRead = max(nRead, z);
-    }
-
-    vector<T> v(dnch);
-    for(size_t pos = 0;pos < nRead;pos++) {
-      for(unsigned oc = 0;oc < dnch;oc++) {
-	double s = 0;
-	for(unsigned ic = 0;ic < snch;ic++) s += buf[ic][pos] * matrix[oc][ic];
-	v[oc] = s;
-      }
-      for(unsigned oc = 0;oc < dnch;oc++) buf[oc][pos] = v[oc];
-    }
-
-    for(unsigned oc = 0;oc < dnch;oc++) out[oc]->queue.write(buf[oc].data(), nRead);
-
-    return nRead;
-  }
-
-  bool allInputAtEnd() {
-    for(unsigned ic = 0;ic < snch;ic++) if (!in->getOutlet(ic)->atEnd()) return false;
-    return true;
-  }
-public:
-  ChannelMixer(shared_ptr<ssrc::OutletProvider<T>> in_, const vector<vector<double>>& matrix_) :
-    in(in_), matrix(matrix_), format(in_->getFormat()), snch(format.channels), dnch(matrix.size()) {
-    format.channels = dnch;
-    buf.resize(max(snch, dnch));
-    for(unsigned i=0;i<dnch;i++) out.push_back(make_shared<Outlet>(*this));
-  }
-
-  shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c) { return out[c]; }
-  WavFormat getFormat() { return format; }
-};
-
-template<typename T>
 class ImpulseGenerator : public ssrc::OutletProvider<T> {
   class Outlet : public ssrc::StageOutlet<T> {
     const double amp;
@@ -412,7 +344,7 @@ struct Pipeline {
     const int dfs = rate < 0 ? srcFormat.sampleRate : rate;
     const int snch = srcFormat.channels, dnch = mixMatrix.size() == 0 ? snch : mixMatrix.size();
 
-    if (mixMatrix.size() != 0 && mixMatrix[0].size() != snch)
+    if (mixMatrix.size() != 0 && mixMatrix[0].size() != (size_t)snch)
       showUsage(argv0, "The number of channels in the source and the matrix you specified with --mixChannels do not match");
 
     if (dstContainerName == "" && srcContainer.c == 0) dstContainerName = "RIFF";

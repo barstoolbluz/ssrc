@@ -157,5 +157,17 @@ namespace ssrc {
   private:
     std::shared_ptr<class DitherImpl> impl;
   };
+
+  template<typename T>
+  class ChannelMixer : public OutletProvider<T> {
+  public:
+    class ChannelMixerImpl;
+    ChannelMixer(std::shared_ptr<ssrc::OutletProvider<T>> in_, const std::vector<std::vector<double>>& matrix_);
+    ~ChannelMixer();
+    std::shared_ptr<ssrc::StageOutlet<T>> getOutlet(uint32_t c);
+    WavFormat getFormat();
+  private:
+    std::shared_ptr<class ChannelMixerImpl> impl;
+  };
 }
 #endif // #ifndef SHIBATCH_SSRC_HPP

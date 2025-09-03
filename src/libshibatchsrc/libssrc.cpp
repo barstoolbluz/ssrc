@@ -3,6 +3,7 @@
 #include "WavReader.hpp"
 #include "WavWriter.hpp"
 #include "Dither.hpp"
+#include "ChannelMixer.hpp"
 
 using namespace std;
 using namespace ssrc;
@@ -164,3 +165,33 @@ template bool Dither<int32_t, double>::atEnd();
 std::shared_ptr<DoubleRNG> ssrc::createTriangularRNG(double peak, uint64_t seed) {
   return make_shared<TriangularDoubleRNG>(peak, make_shared<shibatch::LCG64>(seed));
 }
+
+//
+
+template<typename REAL> ChannelMixer<REAL>::ChannelMixer(std::shared_ptr<ssrc::OutletProvider<REAL>> in_,
+							 const std::vector<std::vector<double>>& matrix_) :
+  impl(make_shared<ChannelMixerStage<REAL>>(in_, matrix_)) {}
+
+template<typename REAL> ChannelMixer<REAL>::~ChannelMixer() {}
+
+template<typename REAL> std::shared_ptr<ssrc::StageOutlet<REAL>> ChannelMixer<REAL>::getOutlet(uint32_t c) {
+  return dynamic_pointer_cast<ChannelMixerStage<REAL>>(impl)->getOutlet(c);
+}
+
+template<typename REAL> WavFormat ChannelMixer<REAL>::getFormat() {
+  return dynamic_pointer_cast<ChannelMixerStage<REAL>>(impl)->getFormat();
+}
+
+//
+
+template ChannelMixer<float>::ChannelMixer(std::shared_ptr<ssrc::OutletProvider<float>> in_,
+					   const std::vector<std::vector<double>>& matrix_);
+template ChannelMixer<float>::~ChannelMixer();
+template std::shared_ptr<ssrc::StageOutlet<float>> ChannelMixer<float>::getOutlet(uint32_t c);
+template WavFormat ChannelMixer<float>::getFormat();
+
+template ChannelMixer<double>::ChannelMixer(std::shared_ptr<ssrc::OutletProvider<double>> in_,
+					   const std::vector<std::vector<double>>& matrix_);
+template ChannelMixer<double>::~ChannelMixer();
+template std::shared_ptr<ssrc::StageOutlet<double>> ChannelMixer<double>::getOutlet(uint32_t c);
+template WavFormat ChannelMixer<double>::getFormat();
