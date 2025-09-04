@@ -1,0 +1,87 @@
+.\" Man page for ssrc
+.TH ssrc 1 "September 2025" "SSRC" "User Commands"
+.SH NAME
+ssrc \- An audiophile-grade sample rate converter
+.SH SYNOPSIS
+.B ssrc
+[\fIoptions\fR] \fI<source_file.wav>\fR \fI<destination_file.wav>\fR
+.br
+.B cat
+\fIinput.wav\fR | \fBssrc\fR \fB--stdin\fR [\fIoptions\fR] \fB--stdout\fR > \fIoutput.wav\fR
+.SH DESCRIPTION
+Shibatch Sample Rate Converter (SSRC) is a fast and high-quality sample rate converter for PCM WAV files. It is designed to efficiently handle the conversion between commonly used sampling rates such as 44.1kHz and 48kHz while ensuring minimal sound quality degradation.
+.P
+Sampling rates of 44.1kHz (used in CDs) and 48kHz (used in DVDs) are widely used, but their conversion ratio (147:160) requires highly sophisticated algorithms to maintain quality. SSRC addresses this challenge by using an FFT-based approach, coupled with SleefDFT and SIMD optimization, to achieve a balance between speed and audio fidelity.
+.P
+Key features include high-order filters, selectable conversion profiles from 'lightning' fast to 'insane' quality, and various dithering options including noise shaping based on the absolute threshold of hearing (ATH) curve.
+.SH OPTIONS
+.TP
+\fB--rate <sampling rate>\fR
+Specify the output sampling rate in Hz. Example: \fB48000\fR.
+.TP
+\fB--att <attenuation>\fR
+Attenuate the output signal in decibels (dB). Default: \fB0\fR.
+.TP
+\fB--bits <number of bits>\fR
+Specify the output quantization bit depth. Common values are \fB16\fR, \fB24\fR, \fB32\fR. Use \fB-32\fR or \fB-64\fR for 32-bit or 64-bit IEEE floating-point output. Default: \fB16\fR.
+.TP
+\fB--dither <type>\fR
+Select a dithering/noise shaping algorithm by ID. Use \fB--dither help\fR to see all available types.
+.TP
+\fB--mixChannels <matrix>\fR
+Mix, re-route, or change the number of channels. See the "Channel Mixing" section in the README.md for details.
+.TP
+\fB--pdf <type> [<amp>]\fR
+Select a Probability Distribution Function (PDF) for dithering. \fB0\fR: Rectangular, \fB1\fR: Triangular. Default: \fB0\fR.
+.TP
+\fB--profile <name>\fR
+Select a conversion quality/speed profile. Use \fB--profile help\fR for details. Default: \fBstandard\fR.
+.TP
+\fB--dstContainer <name>\fR
+Specify the output file container type (\fBriff\fR, \fBw64\fR, \fBrf64\fR, etc.). Use \fB--dstContainer help\fR for options. Defaults to the source container or \fBriff\fR.
+.TP
+\fB--genImpulse ...\fR
+For testing. Generate an impulse signal instead of reading a file.
+.TP
+\fB--genSweep ...\fR
+For testing. Generate a sweep signal instead of reading a file.
+.TP
+\fB--stdin\fR
+Read audio data from standard input.
+.TP
+\fB--stdout\fR
+Write audio data to standard output.
+.TP
+\fB--quiet\fR
+Suppress informational messages.
+.TP
+\fB--debug\fR
+Print detailed debugging information during processing.
+.TP
+\fB--seed <number>\fR
+Set the random seed for dithering to ensure reproducible results.
+.SH "CONVERSION PROFILES"
+Profiles allow you to balance between conversion speed and quality.
+.TP
+\fBinsane\fR
+FFT Length 262144, 200 dB attenuation, double precision. Highest possible quality, very slow.
+.TP
+\fBhigh\fR
+FFT Length 65536, 170 dB attenuation, double precision. Excellent quality for audiophiles.
+.TP
+\fBstandard\fR
+FFT Length 16384, 145 dB attenuation, single precision. Great quality, default setting.
+.TP
+\fBfast\fR
+FFT Length 1024, 96 dB attenuation, single precision. Good quality, suitable for most uses.
+.TP
+\fBlightning\fR
+FFT Length 256, 96 dB attenuation, single precision. Low latency, suitable for real-time uses.
+.SH EXAMPLE
+Convert a WAV file from 44.1kHz to 48kHz with dithering:
+.P
+.B ssrc --rate 48000 --dither 0 input.wav output.wav
+.SH AUTHOR
+Naoki Shibata and contributors.
+.SH "SEE ALSO"
+.BR scsa (1)
