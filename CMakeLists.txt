@@ -89,10 +89,6 @@ if (WIN32)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS=1 _CRT_NONSTDC_NO_DEPRECATE=1)
 endif()
 
-#
-
-find_package(OpenMP)
-
 # Include submodule
 
 set(SLEEF_SUBMODULE_INSTALL_DIR "${CMAKE_BINARY_DIR}/submodules")

@@ -1,14 +1,8 @@
 add_executable(test_cppapi test_cppapi.cpp)
 target_link_libraries(test_cppapi shibatchsrc ${SLEEF_LIBRARIES})
-target_compile_options(test_cppapi PRIVATE ${OpenMP_C_FLAGS})
-target_link_options(test_cppapi PRIVATE ${OpenMP_C_FLAGS})
-target_include_directories(test_cppapi PRIVATE ${OpenMP_C_INCLUDE_DIRS})
 
 add_executable(test_soxrapi test_soxrapi.c)
 target_link_libraries(test_soxrapi shibatchsrc ${SLEEF_LIBRARIES})
-target_compile_options(test_soxrapi PRIVATE ${OpenMP_C_FLAGS})
-target_link_options(test_soxrapi PRIVATE ${OpenMP_C_FLAGS})
-target_include_directories(test_soxrapi PRIVATE ${OpenMP_C_INCLUDE_DIRS})
 target_include_directories(test_soxrapi PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchsrc")
 
 set(TMP_DIR_PATH ${EXECUTABLE_OUTPUT_PATH})
