@@ -11,3 +11,9 @@ install(
   DESTINATION "${INSTALL_BINDIR}"
   COMPONENT Runtime
 )
+
+install(
+  FILES ssrc.1 scsa.1
+  DESTINATION "${CMAKE_INSTALL_MANDIR}/man1"
+  COMPONENT Runtime
+)
