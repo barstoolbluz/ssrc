@@ -57,7 +57,7 @@ cat input.wav | ssrc --stdin [options] --stdout > output.wav
 
 | Option                     | Description                                                                                    |
 |----------------------------|------------------------------------------------------------------------------------------------|
-| `--rate <sampling rate>`   | **Required**. Specify the output sampling rate in Hz. Example: `48000`.                        |
+| `--rate <sampling rate>`   | Specify the output sampling rate in Hz. Example: `48000`.                                      |
 | `--att <attenuation>`      | Attenuate the output signal in decibels (dB). Default: `0`.                                    |
 | `--bits <number of bits>`  | Specify the output quantization bit depth. Common values are `16`, `24`, `32`. Use `-32` or `-64` for 32-bit or 64-bit IEEE floating-point output. Default: `16`. |
 | `--dither <type>`          | Select a dithering/noise shaping algorithm by ID. Use `--dither help` to see all available types for different sample rates. |
@@ -72,6 +72,14 @@ cat input.wav | ssrc --stdin [options] --stdout > output.wav
 | `--quiet`                  | Suppress informational messages.                                                               |
 | `--debug`                  | Print detailed debugging information during processing.                                        |
 | `--seed <number>`          | Set the random seed for dithering to ensure reproducible results.                              |
+
+##### Example
+
+Convert a WAV file from 44.1kHz to 48kHz with dithering:
+
+```bash
+ssrc --rate 48000 --dither 0 input.wav output.wav
+```
 
 #### Conversion Profiles
 
@@ -121,15 +129,7 @@ To swap the left and right channels of a stereo file, you need a 2x2 matrix. The
 - The second row `1,0` means `Output1 = (1 * Input0) + (0 * Input1)`.
 
 
-#### Example
-
-Convert a WAV file from 44.1kHz to 48kHz with dithering:
-
-```bash
-ssrc --rate 48000 --dither 0 input.wav output.wav
-```
-
-### Spectrum Analyzer (`scsa`)
+## Spectrum Analyzer (`scsa`)
 
 The project includes `scsa`, a command-line spectrum analyzer. While it can be used as a general-purpose analyzer, it is primarily designed for automated testing and verification, for example in a CI environment.
 
