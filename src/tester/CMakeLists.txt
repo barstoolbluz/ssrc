@@ -145,9 +145,21 @@ add_test(NAME test_impulse_48000_44100_insane COMMAND "${CMAKE_COMMAND}"
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
 )
 
+add_test(NAME test_impulse_48000_44100_long COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;long\;--minPhase\;--bits\;-64\;--rate\;44100\;${TMP_DIR_PATH}/impulse.48000.wav\;${TMP_DIR_PATH}/impulse.long.48000.44100.minPhase.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.48000.44100.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.long.48000.44100.minPhase.wav\;50000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
 add_test(NAME test_impulse_48000_44100_standard COMMAND "${CMAKE_COMMAND}"
   -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--bits\;-64\;--rate\;44100\;${TMP_DIR_PATH}/impulse.48000.wav\;${TMP_DIR_PATH}/impulse.standard.48000.44100.wav
   -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.48000.44100.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.standard.48000.44100.wav\;51000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
+add_test(NAME test_impulse_48000_44100_standard_minPhase COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--minPhase\;--bits\;-64\;--rate\;44100\;${TMP_DIR_PATH}/impulse.48000.wav\;${TMP_DIR_PATH}/impulse.standard.48000.44100.minPhase.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.48000.44100.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.standard.48000.44100.minPhase.wav\;50000
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
 )
 
@@ -157,8 +169,20 @@ add_test(NAME test_impulse_44100_48000_insane COMMAND "${CMAKE_COMMAND}"
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
 )
 
+add_test(NAME test_impulse_44100_48000_long_minPhase COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;long\;--minPhase\;--bits\;-64\;--rate\;48000\;${TMP_DIR_PATH}/impulse.44100.wav\;${TMP_DIR_PATH}/impulse.long.44100.48000.minPhase.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.44100.48000.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.long.44100.48000.minPhase.wav\;50000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
 add_test(NAME test_impulse_44100_48000_standard COMMAND "${CMAKE_COMMAND}"
   -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--bits\;-64\;--rate\;48000\;${TMP_DIR_PATH}/impulse.44100.wav\;${TMP_DIR_PATH}/impulse.standard.44100.48000.wav
   -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.44100.48000.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.standard.44100.48000.wav\;53000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+)
+
+add_test(NAME test_impulse_44100_48000_standard_minPhase COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--minPhase\;--bits\;-64\;--rate\;48000\;${TMP_DIR_PATH}/impulse.44100.wav\;${TMP_DIR_PATH}/impulse.standard.44100.48000.minPhase.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.44100.48000.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.standard.44100.48000.minPhase.wav\;50000
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
 )
