@@ -31,6 +31,9 @@ Select a dithering/noise shaping algorithm by ID. Use \fB--dither help\fR to see
 \fB--mixChannels <matrix>\fR
 Mix, re-route, or change the number of channels. See the "Channel Mixing" section in the README.md for details.
 .TP
+\fB--minPhase\fR
+Use minimum-phase filters instead of the default linear-phase filters, which makes the processing delay negligible.
+.TP
 \fB--pdf <type> [<amp>]\fR
 Select a Probability Distribution Function (PDF) for dithering. \fB0\fR: Rectangular, \fB1\fR: Triangular. Default: \fB0\fR.
 .TP
