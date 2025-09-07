@@ -10,8 +10,8 @@ using namespace ssrc;
 using namespace shibatch;
 
 template<typename REAL> SSRC<REAL>::SSRC(shared_ptr<StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
-					 unsigned l2dftflen_, double aa_, double guard_, double gain_) :
-  impl(make_shared<SSRCStage<REAL>>(inlet_, sfs_, dfs_, l2dftflen_, aa_, guard_, gain_)) {}
+					 unsigned l2dftflen_, double aa_, double guard_, double gain_, bool minPhase_) :
+  impl(make_shared<SSRCStage<REAL>>(inlet_, sfs_, dfs_, l2dftflen_, aa_, guard_, gain_, minPhase_)) {}
 
 template<typename REAL> SSRC<REAL>::~SSRC() {}
 
@@ -29,13 +29,13 @@ template<typename REAL> double SSRC<REAL>::getDelay() {
 
 //
 
-template SSRC<float>::SSRC(shared_ptr<StageOutlet<float>>, int64_t, int64_t, unsigned, double, double, double);
+template SSRC<float>::SSRC(shared_ptr<StageOutlet<float>>, int64_t, int64_t, unsigned, double, double, double, bool);
 template SSRC<float>::~SSRC();
 template size_t SSRC<float>::read(float *ptr, size_t n);
 template bool SSRC<float>::atEnd();
 template double SSRC<float>::getDelay();
 
-template SSRC<double>::SSRC(shared_ptr<StageOutlet<double>>, int64_t, int64_t, unsigned, double, double, double);
+template SSRC<double>::SSRC(shared_ptr<StageOutlet<double>>, int64_t, int64_t, unsigned, double, double, double, bool);
 template SSRC<double>::~SSRC();
 template size_t SSRC<double>::read(double *ptr, size_t n);
 template bool SSRC<double>::atEnd();

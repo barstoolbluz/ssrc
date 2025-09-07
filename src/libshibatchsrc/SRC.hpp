@@ -8,6 +8,7 @@
 #include "Kaiser.hpp"
 #include "FastPP.hpp"
 #include "DFTFilter.hpp"
+#include "Minrceps.hpp"
 
 #include "shibatch/ssrc.hpp"
 
@@ -121,6 +122,7 @@ namespace shibatch {
 
     const int64_t dftflen;
     const double aa, guard, gain;
+    const bool minPhase;
     double delay = 0;
 
     int64_t osm, fsos;
@@ -132,10 +134,10 @@ namespace shibatch {
 
   public:
     SSRCStage(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
-	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1, double gain_ = 1) :
+	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1, double gain_ = 1, bool minPhase_ = false) :
       inlet(inlet_), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
       lfs(std::min(sfs_, dfs_)), hfs(std::max(sfs_, dfs_)),
-      dftflen(1LL << l2dftflen_), aa(aa_), guard(guard_), gain(gain_) {
+      dftflen(1LL << l2dftflen_), aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_) {
 
       if (fslcm/hfs == 1) osm = 1;
       else if (fslcm/hfs % 2 == 0) osm = 2;
@@ -169,6 +171,14 @@ namespace shibatch {
 	dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2 - df, dftflen - 1, aa, gain / dftflen);
 
 	delay = ((ppfv.size() * 0.5 - 1) / fslcm + (dftfv.size() * 0.5 - 1) / (hfs * osm)) * dfs;
+
+	if (minPhase) {
+	  Minrceps minrceps(dftfv.size() * 8);
+
+	  ppfv = minrceps.execute(ppfv);
+	  dftfv = minrceps.execute(dftfv);
+	  delay = 0;
+	}
       }
 
       if (dfs > sfs) {

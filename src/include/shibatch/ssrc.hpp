@@ -107,7 +107,7 @@ namespace ssrc {
   public:
     class SSRCImpl;
     SSRC(std::shared_ptr<StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
-	 unsigned log2dftfilterlen_ = 10, double aa_ = 80, double guard_ = 1, double gain_ = 1);
+	 unsigned log2dftfilterlen_ = 10, double aa_ = 80, double guard_ = 1, double gain_ = 1, bool minPhase_ = false);
     ~SSRC();
     bool atEnd();
     size_t read(REAL *ptr, size_t n);

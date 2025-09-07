@@ -115,6 +115,7 @@ void showUsage(const string& argv0, const string& mes = "") {
   cerr << "          --profile <name>           Select a conversion profile" << endl;
   cerr << "                                       fast : Enough quality for almost every purpose" << endl;
   cerr << "                                       help : Show all available options" << endl;
+  cerr << "          --minPhase                 Use minimum phase filters instead of linear phase filters" << endl;
   cerr << "          --dstContainer <name>      Select a container of output file" << endl;
   cerr << "                                       riff : The most common WAV format" << endl;
   cerr << "                                       help : Show all available options" << endl;
@@ -287,7 +288,7 @@ struct Pipeline {
   const vector<vector<double>>& mixMatrix;
   uint64_t seed;
   double att, peak;
-  bool quiet, debug;
+  bool minPhase, quiet, debug;
 
   enum SrcType src;
   enum DstType dst;
@@ -301,13 +302,13 @@ struct Pipeline {
   Pipeline(const string& argv0_, const string &srcfn_, const string &dstfn_,
 	   const string &profileName_, const string &dstContainerName_, uint64_t dstChannelMask_,
 	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_, const vector<vector<double>>& mixMatrix_,
-	   uint64_t seed_, double att_, double peak_, bool quiet_, bool debug_,
+	   uint64_t seed_, double att_, double peak_, bool minPhase_, bool quiet_, bool debug_,
 	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
 	   double sweepStart_, double sweepEnd_, int generatorNch_, int generatorFs_, ConversionProfile profile_) :
     argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
     profileName(profileName_), dstContainerName(dstContainerName_), dstChannelMask(dstChannelMask_),
     rate(rate_), bits(bits_), dither(dither_), pdf(pdf_), mixMatrix(mixMatrix_),
-    seed(seed_), att(att_), peak(peak_), quiet(quiet_), debug(debug_),
+    seed(seed_), att(att_), peak(peak_), minPhase(minPhase_), quiet(quiet_), debug(debug_),
     src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
     sweepStart(sweepStart_), sweepEnd(sweepEnd_), generatorNch(generatorNch_), generatorFs(generatorFs_), profile(profile_) {}
 
@@ -472,7 +473,7 @@ struct Pipeline {
 
       for(int i=0;i<dnch;i++) {
 	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
-					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase);
 	out[i] = ssrc;
 	delay = ssrc->getDelay();
 
@@ -501,7 +502,7 @@ struct Pipeline {
 	}
 
 	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
-					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0));
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase);
 
 	delay = ssrc->getDelay();
 
@@ -567,6 +568,7 @@ int main(int argc, char **argv) {
   int64_t rate = -1, bits = 16, dither = -1, pdf = 0;
   uint64_t seed = ~0ULL, dstChannelMask = ~0ULL;
   double att = 0, peak = 1.0;
+  bool minPhase = false;
   vector<vector<double>> mixMatrix;
   bool quiet = false, debug = false;
 
@@ -694,6 +696,8 @@ int main(int argc, char **argv) {
       quiet = true;
     } else if (string(argv[nextArg]) == "--debug") {
       debug = true;
+    } else if (string(argv[nextArg]) == "--minPhase") {
+      minPhase = true;
     } else if (string(argv[nextArg]) == "--seed") {
       if (nextArg+1 >= argc) showUsage(argv[0]);
       char *p;
@@ -775,14 +779,14 @@ int main(int argc, char **argv) {
     if (!profile.doublePrecision) {
       Pipeline<float> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
 			       dstChannelMask, rate, bits, dither, pdf, mixMatrix,
-			       seed, att, peak, quiet, debug,
+			       seed, att, peak, minPhase, quiet, debug,
 			       src, dst, impulsePeriod, sweepLength,
 			       sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();
     } else {
       Pipeline<double> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
 				dstChannelMask, rate, bits, dither, pdf, mixMatrix,
-				seed, att, peak, quiet, debug,
+				seed, att, peak, minPhase, quiet, debug,
 				src, dst, impulsePeriod, sweepLength,
 				sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();

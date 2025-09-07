@@ -1,0 +1,98 @@
+#ifndef MINRCEPS_HPP
+#define MINRCEPS_HPP
+
+#include <vector>
+#include <cmath>
+#include <cstring>
+
+#include <sleef.h>
+#include <sleefdft.h>
+
+#ifndef M_PI
+#define M_PI 3.1415926535897932384626433832795028842
+#endif
+
+namespace shibatch {
+  class Minrceps {
+    static constexpr const size_t toPow2(size_t n) {
+      size_t ret = 1;
+      for(;ret < n && ret != 0;ret *= 2) ;
+      return ret;
+    }
+
+    std::vector<double> createWindow(size_t N) {
+      // 7-term Blackman-Harris
+      // https://dsp.stackexchange.com/questions/51095/seven-term-blackman-harris-window
+      static const double coef[] = {
+	.27105140069342, -0.43329793923448, 0.21812299954311, -0.06592544638803,
+	0.01081174209837, -0.00077658482522, 0.00001388721735
+      };
+
+      std::vector<double> v(N);
+
+      for(size_t n=0;n<N;n++) {
+	for(int k=0;k<7;k++) v[n] += coef[k] * (1.0 / .27105140069342) * cos((2*M_PI/(N*2))*k*(n + N));
+      }
+
+      return v;
+    }
+
+    const unsigned L;
+    SleefDFT *dftf = nullptr, *dftb = nullptr;
+    double *dftbuf = nullptr;
+
+  public:
+    Minrceps(unsigned L_) : L(toPow2(L_)) {
+      dftf = SleefDFT_double_init1d(L, NULL, NULL, SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_FORWARD  | SLEEF_MODE_NO_MT);
+      dftb = SleefDFT_double_init1d(L, NULL, NULL, SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_BACKWARD | SLEEF_MODE_NO_MT);
+      dftbuf = (double *)Sleef_malloc(L * sizeof(double));
+    }
+
+    ~Minrceps() {
+      Sleef_free(dftbuf);
+      SleefDFT_dispose(dftb);
+      SleefDFT_dispose(dftf);
+    }
+
+    // Smith AD, Ferguson RJ. Minimum-phase signal calculation using the real cepstrum. CREWES Res. Report. 2014;26(72).
+
+    template<typename REAL>
+    std::vector<REAL> execute(std::vector<REAL> in, const double alpha = 1.0 - ldexp(1, -16)) {
+      auto window = createWindow(in.size());
+
+      memset(dftbuf, 0, L * sizeof(double));
+
+      double a = 1.0, ein = 0;
+      for(unsigned i=0;i<in.size();i++) { dftbuf[i] = in[i] * a; ein += in[i]; a *= alpha; }
+
+      SleefDFT_execute(dftf, dftbuf, dftbuf);
+
+      for(unsigned i=0;i<L/2;i++) {
+	dftbuf[i*2+0] = log(hypot(dftbuf[i*2+0], dftbuf[i*2+1])) * (1.0 / L);
+	dftbuf[i*2+1] = 0;
+      }
+
+      SleefDFT_execute(dftb, dftbuf, dftbuf);
+
+      for(unsigned i=1;i<L/2;i++) dftbuf[i] += dftbuf[L - i];
+
+      std::vector<REAL> out(in.size());
+
+      out[0] = exp(dftbuf[0] / 2) * window[0];
+      double eout = out[0] * out[0];
+      a = 1.0 / alpha;
+      for(unsigned n=1;n<out.size();n++) {
+	double sum = 0;
+	for(unsigned k=1;k<=n;k++) sum += k * (1.0 / n) * dftbuf[k] * out[n - k];
+	out[n] = sum * a * window[n];
+	eout += out[n];
+	a *= (1.0 / alpha);
+      }
+
+      for(unsigned n=0;n<out.size();n++) out[n] *= ein / eout;
+
+      return out;
+    }
+  };
+}
+#endif // #ifndef MINRCEPS_HPP

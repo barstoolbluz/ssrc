@@ -50,6 +50,20 @@ foreach(PROFILE standard long high insane)
   )
 endforeach()
 
+foreach(PROFILE standard long)
+  add_test(NAME test_sin10k_44100_48000_${PROFILE}_minPhase COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--minPhase\;--profile\;${PROFILE}\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.minPhase.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.minPhase.wav\;100000\;460000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
+
+  add_test(NAME test_sin10k_48000_44100_${PROFILE}_minPhase COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--minPhase\;--profile\;${PROFILE}\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.minPhase.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.minPhase.wav\;100000\;420000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
+endforeach()
+
 foreach(PROFILE lightning fast short)
   add_test(NAME test_sin10k_44100_48000_${PROFILE} COMMAND "${CMAKE_COMMAND}"
     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.wav
@@ -60,6 +74,18 @@ foreach(PROFILE lightning fast short)
   add_test(NAME test_sin10k_48000_44100_${PROFILE} COMMAND "${CMAKE_COMMAND}"
     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.wav
     -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.wav\;100000\;420000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
+
+  add_test(NAME test_sin10k_44100_48000_${PROFILE}_minPhase COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--minPhase\;--profile\;${PROFILE}\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.minPhase.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.minPhase.wav\;100000\;460000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
+
+  add_test(NAME test_sin10k_48000_44100_${PROFILE}_minPhase COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--minPhase\;--profile\;${PROFILE}\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.minPhase.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.minPhase.wav\;100000\;420000\;10000
     -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
   )
 endforeach()
