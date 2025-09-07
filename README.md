@@ -62,6 +62,7 @@ cat input.wav | ssrc --stdin [options] --stdout > output.wav
 | `--bits <number of bits>`  | Specify the output quantization bit depth. Common values are `16`, `24`, `32`. Use `-32` or `-64` for 32-bit or 64-bit IEEE floating-point output. Default: `16`. |
 | `--dither <type>`          | Select a dithering/noise shaping algorithm by ID. Use `--dither help` to see all available types for different sample rates. |
 | `--mixChannels <matrix>`   | Mix, re-route, or change the number of channels. See the "Channel Mixing" section below for details and examples. |
+| `--minPhase`               | Use a minimum-phase filter instead of the default linear-phase filter.                         |
 | `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering. `0`: Rectangular, `1`: Triangular. Default: `0`. |
 | `--profile <name>`         | Select a conversion quality/speed profile. Use `--profile help` for details. Default: `standard`. |
 | `--dstContainer <name>`    | Specify the output file container type (`riff`, `w64`, `rf64`, etc.). Use `--dstContainer help` for options. Defaults to the source container or `riff`. |
