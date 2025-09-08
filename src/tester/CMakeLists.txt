@@ -98,14 +98,14 @@ add_test(NAME test_sin10k_44100_48000_24bit COMMAND "${CMAKE_COMMAND}"
 )
 
 add_test(NAME test_sin10k_44100_48000_w64 COMMAND "${CMAKE_COMMAND}"
-  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--dstContainer\;w64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.w64.wav
-  -D COMMAND1_TO_EXECUTE=${CMAKE_COMMAND}\;-E\;echo\;w64_test_OK
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--bits\;24\;--dstContainer\;w64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.w64.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.w64.wav\;100000\;460000\;10000
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
 )
 
 add_test(NAME test_sin10k_44100_48000_rf64 COMMAND "${CMAKE_COMMAND}"
-  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--dstContainer\;rf64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.rf64.wav
-  -D COMMAND1_TO_EXECUTE=${CMAKE_COMMAND}\;-E\;echo\;rf64_test_OK
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--bits\;24\;--dstContainer\;rf64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.rf64.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.rf64.wav\;100000\;460000\;10000
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
 )
 

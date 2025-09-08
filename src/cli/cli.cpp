@@ -448,6 +448,7 @@ struct Pipeline {
       cerr << endl;
 
       cerr << "att = "          << att << endl;
+      cerr << "minPhase = "     << minPhase << endl;
       cerr << "quiet = "        << quiet << endl;
       cerr << "seed = "         << seed << endl;
       cerr << endl;

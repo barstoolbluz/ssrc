@@ -57,7 +57,7 @@ namespace shibatch {
     // Smith AD, Ferguson RJ. Minimum-phase signal calculation using the real cepstrum. CREWES Res. Report. 2014;26(72).
 
     template<typename REAL>
-    std::vector<REAL> execute(std::vector<REAL> in, const double alpha = 1.0 - ldexp(1, -16)) {
+    std::vector<REAL> execute(std::vector<REAL> in, const double alpha = 1.0 - ldexp(1, -20)) {
       auto window = createWindow(in.size());
 
       memset(dftbuf, 0, L * sizeof(double));

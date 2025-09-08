@@ -93,6 +93,27 @@ namespace shibatch {
 	filter[len/2 + i] = filter[len/2 - i] = window(i, len, alp, iza) * hn_lpf(i, fp, fs) * gain;
       return filter;
     }
+
+    static double hn_bpf(int n, double fp0, double g0, double fp1, double g1, double fs, int K) {
+      double sum = 0;
+      for(int k=0;k<K;k++) {
+	double fl = (k+0)*(fp1-fp0)/K + fp0;
+	double fh = (k+1)*(fp1-fp0)/K + fp0;
+	double g = exp((k+0)*(log(g1)-log(g0))/K + log(g0));
+	sum += (hn_lpf(n, fh, fs) - hn_lpf(n, fl, fs)) * g;
+      }
+      return sum;
+    }
+
+    template<typename REAL>
+    static std::vector<REAL> makeBPF(double fs, double fp0, double g0, double fp1, double g1, int64_t len, double aa, int K, double gain = 1) {
+      double alp = alpha(aa), iza = izero(alp);
+      if ((len & 1) == 0) len++;
+      std::vector<REAL> filter(len);
+      for(int i=0;i<=len/2;i++)
+	filter[len/2 + i] = filter[len/2 - i] = window(i, len, alp, iza) * hn_bpf(i, fp0, g0, fp1, g1, fs, K) * gain;
+      return filter;
+    }
   };
 }
 #endif // #ifndef KAISER_HPP
