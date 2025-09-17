@@ -28,8 +28,8 @@ namespace shibatch {
     SleefDFT *dftf = nullptr, *dftb = nullptr;
     REAL *RESTRICT dftfilter = nullptr, *RESTRICT dftbuf = nullptr;
 
-    std::vector<REAL> overlapbuf, outbuf;
-    size_t outbuflen = 0;
+    std::vector<REAL> overlapbuf, fractionBuf;
+    size_t fractionLen = 0, nZeroPadding = 0;
     bool endReached = false;
 
     template<typename T, typename std::enable_if<(std::is_same<T, double>::value), int>::type = 0>
@@ -53,12 +53,12 @@ namespace shibatch {
       dftbuf     = (REAL *)Sleef_malloc(dftlen   * sizeof(REAL));
 
       memset(dftfilter, 0, dftlen * sizeof(REAL));
-      memcpy(dftfilter, fircoef_, firlen_ * sizeof(REAL));
+      for(size_t z=0;z<firlen_;z++) dftfilter[z] = fircoef_[z] * (1.0 / dftleno2);
 
       SleefDFT_execute(dftf, dftfilter, dftfilter);
 
       overlapbuf.resize(dftleno2);
-      outbuf.resize(dftlen);
+      fractionBuf.resize(dftlen);
     }
 
     DFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const std::vector<REAL> &v) : DFTFilter(in_, v.data(), v.size()) {}
@@ -70,31 +70,39 @@ namespace shibatch {
       SleefDFT_dispose(dftf);
     }
 
-    bool atEnd() { return outbuflen > 0 || !endReached; }
+    bool atEnd() { return fractionLen > 0 || !endReached; }
 
     size_t read(REAL *RESTRICT out, size_t nSamples) {
       size_t ret = 0;
 
-      if (outbuflen > 0) {
-	size_t nOut = std::min(outbuflen, nSamples);
-	memcpy(out, outbuf.data(), nOut * sizeof(REAL));
-	memmove(outbuf.data(), outbuf.data() + nOut, (outbuflen - nOut) * sizeof(REAL));
-	outbuflen -= nOut;
+      if (fractionLen > 0) {
+	size_t nOut = std::min(fractionLen, nSamples);
+	memcpy(out, fractionBuf.data(), nOut * sizeof(REAL));
+	memmove(fractionBuf.data(), fractionBuf.data() + nOut, (fractionLen - nOut) * sizeof(REAL));
+	fractionLen -= nOut;
 	nSamples -= nOut;
 	out += nOut;
 	ret += nOut;
       }
 
-      while(nSamples > 0 && !endReached) {
+      while(nSamples > 0 && (!endReached || nZeroPadding != 0)) {
 	size_t nRead = 0;
 
 	while(nRead < dftleno2) {
-	  size_t r = in->read(dftbuf + nRead, dftleno2 - nRead);
-	  if (r == 0) {
-	    endReached = true;
-	    break;
+	  if (!endReached) {
+	    size_t r = in->read(dftbuf + nRead, dftleno2 - nRead);
+	    if (r == 0) {
+	      endReached = true;
+	      nZeroPadding = firlen;
+	    }
+	    nRead += r;
+	  } else {
+	    size_t r = std::min(dftleno2 - nRead, nZeroPadding);
+	    memset(dftbuf + nRead, 0, r * sizeof(REAL));
+	    nRead += r;
+	    nZeroPadding -= r;
+	    if (nZeroPadding == 0) break;
 	  }
-	  nRead += r;
 	}
 
 	memset(dftbuf + nRead, 0, (dftlen - nRead) * sizeof(REAL));
@@ -122,31 +130,25 @@ namespace shibatch {
 
 	for(size_t i=0;i<nOut;i++) out[i] = dftbuf[i] + overlapbuf[i];
 
-	if (nOut < dftleno2) {
-	  for(size_t i=0;i<dftleno2 - nOut;i++)
-	    outbuf[i] = dftbuf[nOut + i] + overlapbuf[nOut + i];
-	  outbuflen = dftleno2 - nOut;
+	if (nOut < nRead) {
+	  for(size_t i=0;i<nRead - nOut;i++) fractionBuf[i] = dftbuf[nOut + i] + overlapbuf[nOut + i];
+	  fractionLen = nRead - nOut;
 	}
 
-	if (endReached) {
-	  memcpy(&outbuf[outbuflen], &dftbuf[dftleno2], firlen * sizeof(REAL));
-	  outbuflen += dftleno2;
-	} else {
-	  memcpy(overlapbuf.data(), &dftbuf[dftleno2], dftleno2 * sizeof(REAL));
-	}
+	memcpy(overlapbuf.data(), &dftbuf[dftleno2], dftleno2 * sizeof(REAL));
 
 	out += nOut;
 	nSamples -= nOut;
 	ret += nOut;
 
-	if (outbuflen > 0) break;
+	if (fractionLen > 0) break;
       }
 
       if (nSamples > 0) {
-	size_t nOut = std::min(outbuflen, nSamples);
-	memcpy(out, outbuf.data(), nOut * sizeof(REAL));
-	memmove(outbuf.data(), outbuf.data() + nOut, (outbuflen - nOut) * sizeof(REAL));
-	outbuflen -= nOut;
+	size_t nOut = std::min(fractionLen, nSamples);
+	memcpy(out, fractionBuf.data(), nOut * sizeof(REAL));
+	memmove(fractionBuf.data(), fractionBuf.data() + nOut, (fractionLen - nOut) * sizeof(REAL));
+	fractionLen -= nOut;
 	nSamples -= nOut;
 	out += nOut;
 	ret += nOut;

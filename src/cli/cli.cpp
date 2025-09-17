@@ -1,4 +1,4 @@
-// Shibatch Sample Rate Converter written by Naoki Shibata  https://shibatch.github.io
+// Shibatch Sample Rate Converter written by Naoki Shibata  https://shibatch.org
 
 #include <iostream>
 #include <string>
@@ -289,6 +289,7 @@ struct Pipeline {
   uint64_t seed;
   double att, peak;
   bool minPhase, quiet, debug;
+  unsigned l2mindftflen;
 
   enum SrcType src;
   enum DstType dst;
@@ -302,13 +303,13 @@ struct Pipeline {
   Pipeline(const string& argv0_, const string &srcfn_, const string &dstfn_,
 	   const string &profileName_, const string &dstContainerName_, uint64_t dstChannelMask_,
 	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_, const vector<vector<double>>& mixMatrix_,
-	   uint64_t seed_, double att_, double peak_, bool minPhase_, bool quiet_, bool debug_,
+	   uint64_t seed_, double att_, double peak_, bool minPhase_, bool quiet_, bool debug_, unsigned l2mindftflen_,
 	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
 	   double sweepStart_, double sweepEnd_, int generatorNch_, int generatorFs_, ConversionProfile profile_) :
     argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
     profileName(profileName_), dstContainerName(dstContainerName_), dstChannelMask(dstChannelMask_),
     rate(rate_), bits(bits_), dither(dither_), pdf(pdf_), mixMatrix(mixMatrix_),
-    seed(seed_), att(att_), peak(peak_), minPhase(minPhase_), quiet(quiet_), debug(debug_),
+    seed(seed_), att(att_), peak(peak_), minPhase(minPhase_), quiet(quiet_), debug(debug_), l2mindftflen(l2mindftflen_),
     src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
     sweepStart(sweepStart_), sweepEnd(sweepEnd_), generatorNch(generatorNch_), generatorFs(generatorFs_), profile(profile_) {}
 
@@ -449,6 +450,7 @@ struct Pipeline {
 
       cerr << "att = "          << att << endl;
       cerr << "minPhase = "     << minPhase << endl;
+      cerr << "l2mindftflen = " << l2mindftflen << endl;
       cerr << "quiet = "        << quiet << endl;
       cerr << "seed = "         << seed << endl;
       cerr << endl;
@@ -474,7 +476,7 @@ struct Pipeline {
 
       for(int i=0;i<dnch;i++) {
 	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
-					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase);
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase, l2mindftflen);
 	out[i] = ssrc;
 	delay = ssrc->getDelay();
 
@@ -503,7 +505,7 @@ struct Pipeline {
 	}
 
 	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
-					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase);
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase, l2mindftflen);
 
 	delay = ssrc->getDelay();
 
@@ -572,6 +574,7 @@ int main(int argc, char **argv) {
   bool minPhase = false;
   vector<vector<double>> mixMatrix;
   bool quiet = false, debug = false;
+  unsigned l2mindftflen = 0;
 
   enum SrcType src = FILEIN;
   enum DstType dst = FILEOUT;
@@ -699,6 +702,13 @@ int main(int argc, char **argv) {
       debug = true;
     } else if (string(argv[nextArg]) == "--minPhase") {
       minPhase = true;
+    } else if (string(argv[nextArg]) == "--partConv") {
+      if (nextArg+1 >= argc) showUsage(argv[0]);
+      char *p;
+      l2mindftflen = strtoul(argv[nextArg+1], &p, 0);
+      if (p == argv[nextArg+1] || *p || l2mindftflen == 0)
+	showUsage(argv[0], "A positive value is expected after --partConv.");
+      nextArg++;
     } else if (string(argv[nextArg]) == "--seed") {
       if (nextArg+1 >= argc) showUsage(argv[0]);
       char *p;
@@ -780,14 +790,14 @@ int main(int argc, char **argv) {
     if (!profile.doublePrecision) {
       Pipeline<float> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
 			       dstChannelMask, rate, bits, dither, pdf, mixMatrix,
-			       seed, att, peak, minPhase, quiet, debug,
+			       seed, att, peak, minPhase, quiet, debug, l2mindftflen,
 			       src, dst, impulsePeriod, sweepLength,
 			       sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();
     } else {
       Pipeline<double> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
 				dstChannelMask, rate, bits, dither, pdf, mixMatrix,
-				seed, att, peak, minPhase, quiet, debug,
+				seed, att, peak, minPhase, quiet, debug, l2mindftflen,
 				src, dst, impulsePeriod, sweepLength,
 				sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();

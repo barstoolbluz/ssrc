@@ -1,4 +1,4 @@
-add_subdirectory("libshibatchsrc")
+add_subdirectory("libshibatchdsp")
 if (BUILD_CLI)
   add_subdirectory("cli")
 endif()

@@ -1,9 +1,9 @@
 add_executable(test_cppapi test_cppapi.cpp)
-target_link_libraries(test_cppapi shibatchsrc ${SLEEF_LIBRARIES})
+target_link_libraries(test_cppapi shibatchdsp ${SLEEF_LIBRARIES})
 
 add_executable(test_soxrapi test_soxrapi.c)
-target_link_libraries(test_soxrapi shibatchsrc ${SLEEF_LIBRARIES})
-target_include_directories(test_soxrapi PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchsrc")
+target_link_libraries(test_soxrapi shibatchdsp ${SLEEF_LIBRARIES})
+target_include_directories(test_soxrapi PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchdsp")
 
 set(TMP_DIR_PATH ${EXECUTABLE_OUTPUT_PATH})
 
@@ -48,6 +48,18 @@ foreach(PROFILE standard long high insane)
     -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.wav\;100000\;420000\;10000
     -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
   )
+
+  add_test(NAME test_sin10k_44100_48000_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.partConv.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.partConv.wav\;100000\;460000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
+
+  add_test(NAME test_sin10k_48000_44100_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.partConv.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.partConv.wav\;100000\;420000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
 endforeach()
 
 foreach(PROFILE standard long)
@@ -86,6 +98,18 @@ foreach(PROFILE lightning fast short)
   add_test(NAME test_sin10k_48000_44100_${PROFILE}_minPhase COMMAND "${CMAKE_COMMAND}"
     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--minPhase\;--profile\;${PROFILE}\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.minPhase.wav
     -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.minPhase.wav\;100000\;420000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
+
+  add_test(NAME test_sin10k_44100_48000_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.partConv.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.partConv.wav\;100000\;460000\;10000
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
+  )
+
+  add_test(NAME test_sin10k_48000_44100_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.partConv.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.partConv.wav\;100000\;420000\;10000
     -P ${CMAKE_CURRENT_LIST_DIR}/execute_two_commands.cmake
   )
 endforeach()

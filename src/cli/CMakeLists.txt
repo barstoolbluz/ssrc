@@ -1,10 +1,10 @@
 add_executable(ssrc cli.cpp)
-target_link_libraries(ssrc shibatchsrc ${SLEEF_LIBRARIES})
-target_include_directories(ssrc PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchsrc")
+target_link_libraries(ssrc shibatchdsp ${SLEEF_LIBRARIES})
+target_include_directories(ssrc PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchdsp")
 
 add_executable(scsa scsa.cpp)
-target_link_libraries(scsa shibatchsrc ${SLEEF_LIBRARIES})
-target_include_directories(scsa PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchsrc")
+target_link_libraries(scsa shibatchdsp ${SLEEF_LIBRARIES})
+target_include_directories(scsa PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchdsp")
 
 install(
   TARGETS ssrc scsa

@@ -8,6 +8,7 @@
 #include "Kaiser.hpp"
 #include "FastPP.hpp"
 #include "DFTFilter.hpp"
+#include "PartDFTFilter.hpp"
 #include "Minrceps.hpp"
 
 #include "shibatch/ssrc.hpp"
@@ -120,7 +121,7 @@ namespace shibatch {
     std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
     const int64_t sfs, dfs, fslcm, lfs, hfs;
 
-    const int64_t dftflen;
+    const int64_t dftflen, mindftflen;
     const double aa, guard, gain;
     const bool minPhase;
     double delay = 0;
@@ -129,15 +130,18 @@ namespace shibatch {
 
     std::shared_ptr<FastPP<REAL>> ppf;
     std::shared_ptr<DFTFilter<REAL>> dftf;
+    std::shared_ptr<PartDFTFilter<REAL>> pdftf;
     std::shared_ptr<Oversample> oversample;
     std::shared_ptr<Undersample> undersample;
 
   public:
     SSRCStage(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
-	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1, double gain_ = 1, bool minPhase_ = false) :
+	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1, double gain_ = 1,
+	      bool minPhase_ = false, unsigned l2mindftflen_ = 0) :
       inlet(inlet_), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
       lfs(std::min(sfs_, dfs_)), hfs(std::max(sfs_, dfs_)),
-      dftflen(1LL << l2dftflen_), aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_) {
+      dftflen(1LL << l2dftflen_), mindftflen(l2mindftflen_ == 0 ? 0 : (1LL << l2mindftflen_)),
+      aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_) {
 
       if (fslcm/hfs == 1) osm = 1;
       else if (fslcm/hfs % 2 == 0) osm = 2;
@@ -165,10 +169,10 @@ namespace shibatch {
 	// sampling frequency (fsos)      : hfs * osm (Hz)
 	// pass-band edge frequency (fp2) : (lfs / 2 - df) (Hz)
 	// length                         : dftflen - 1 (dftflen must be 2^N)
-	// gain                           : 1.0 / dftflen
+	// gain                           : 1.0
 
 	double df = KaiserWindow::transitionBandWidth(aa, hfs * osm, dftflen - 1);
-	dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2 - df, dftflen - 1, aa, gain / dftflen);
+	dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2 - df, dftflen - 1, aa, gain);
 
 	delay = ((ppfv.size() * 0.5 - 1) / fslcm + (dftfv.size() * 0.5 - 1) / (hfs * osm)) * dfs;
 
@@ -183,12 +187,22 @@ namespace shibatch {
 
       if (dfs > sfs) {
 	ppf = make_shared<FastPP<REAL>>(inlet, sfs, fslcm, fsos, ppfv);
-	dftf = make_shared<DFTFilter<REAL>>(ppf, dftfv);
-	undersample = make_shared<Undersample>(dftf, fsos, dfs);
+	if (mindftflen == 0) {
+	  dftf = make_shared<DFTFilter<REAL>>(ppf, dftfv);
+	  undersample = make_shared<Undersample>(dftf, fsos, dfs);
+	} else {
+	  pdftf = make_shared<PartDFTFilter<REAL>>(ppf, dftfv, mindftflen);
+	  undersample = make_shared<Undersample>(pdftf, fsos, dfs);
+	}
       } else if (dfs < sfs) {
 	oversample = make_shared<Oversample>(inlet, sfs, fsos);
-	dftf = make_shared<DFTFilter<REAL>>(oversample, dftfv);
-	ppf = make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv);
+	if (mindftflen == 0) {
+	  dftf = make_shared<DFTFilter<REAL>>(oversample, dftfv);
+	  ppf = make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv);
+	} else {
+	  pdftf = make_shared<PartDFTFilter<REAL>>(oversample, dftfv, mindftflen);
+	  ppf = make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv);
+	}
       }
     }
 

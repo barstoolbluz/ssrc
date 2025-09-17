@@ -23,7 +23,7 @@ Shibatch Sample Rate Converter (SSRC) is a fast and high-quality sample rate con
 
 Sampling rates of 44.1kHz (used in CDs) and 48kHz (used in DVDs) are widely used, but their conversion ratio (147:160) requires highly sophisticated algorithms to maintain quality. SSRC addresses this challenge by using an FFT-based approach, coupled with SleefDFT and SIMD optimization, to achieve a balance between speed and audio fidelity.
 
-See [here](http://shibatch.github.io/ssrc) for some experimental results.
+See [here](https://shibatch.org/ssrc) for some experimental results.
 
 
 ## Getting Started
@@ -267,4 +267,4 @@ software, you need to financially support our project. Please see our
 [Code of Conduct](https://github.com/shibatch/nofreelunch?tab=coc-ov-file)
 or its [introduction video](https://youtu.be/35zFfdCuBII).
 
-Copyright [Naoki Shibata](https://shibatch.github.io/) and contributors.
+Copyright [Naoki Shibata](https://shibatch.org/) and contributors.
