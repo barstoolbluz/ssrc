@@ -17,6 +17,7 @@ Shibatch Sample Rate Converter (SSRC) is a fast and high-quality sample rate con
 - **Dithering Functionality**: Supports various dithering techniques, including noise shaping based on the absolute threshold of hearing (ATH) curve.
 - **Specialized Filters**: Implements high-order filters to address the challenges of converting between 44.1kHz and 48kHz.
 - **Selectable Conversion Profile**: You can select the filter lengths and computing precision. Single-precision computation is generally sufficient for audio processing, and even the standard profile allows for highly accurate conversion. However, since this tool is designed for audiophiles, you can also select a profile that performs all computation in double precision.
+- **Low-Latency Real-Time Processing**: Suitable for demanding real-time applications by combining minimum-phase filters with an efficient partitioned convolution algorithm.
 
 
 ## Why SSRC?
