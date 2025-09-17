@@ -6,4 +6,4 @@ Name: SSRC
 Description: Shibatch Sample Rate Converter
 Version: @SSRC_VERSION@
 Cflags: -I${includedir}
-Libs: -L${libdir} -lshibatchsrc
+Libs: -L${libdir} -lshibatchdsp

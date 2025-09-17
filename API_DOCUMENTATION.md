@@ -1,8 +1,8 @@
 # SSRC API Documentation
 
-## 1. C++ Library API (`libshibatchsrc`)
+## 1. C++ Library API (`libshibatchdsp`)
 
-The `ssrc` tool is built on top of the `libshibatchsrc` C++ library. You can use this library directly in your own projects to perform sample rate conversion without shelling out to an external command. The library is header-only and uses templates to support both single-precision (`float`) and double-precision (`double`) processing.
+The `ssrc` tool is built on top of the `libshibatchdsp` C++ library. You can use this library directly in your own projects to perform sample rate conversion without shelling out to an external command. The library is header-only and uses templates to support both single-precision (`float`) and double-precision (`double`) processing.
 
 ### 1.1. Core Concept: The Processing Pipeline
 
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
 
 ## 2. Advanced Topics
 
-This section delves deeper into specific components of the `libshibatchsrc` API.
+This section delves deeper into specific components of the `libshibatchdsp` API.
 
 ### 2.1. Dithering with the `Dither` Class
 
@@ -390,7 +390,7 @@ These parameters are bundled together in the command-line tool's "profiles". Whe
 
 ### 2.6. Implementing Custom Processing Stages with `StageOutlet`
 
-The entire `libshibatchsrc` library is built on a simple but powerful design pattern: the **processing pipeline**. Audio data flows from a source, through one or more processing stages, to a destination. Each of these stages is connected by a unified interface: `ssrc::StageOutlet<T>`.
+The entire `libshibatchdsp` library is built on a simple but powerful design pattern: the **processing pipeline**. Audio data flows from a source, through one or more processing stages, to a destination. Each of these stages is connected by a unified interface: `ssrc::StageOutlet<T>`.
 
 This interface is the fundamental building block of the library. `WavReader` is a `StageOutlet`, `SSRC` is a `StageOutlet`, and `Dither` is a `StageOutlet`. By making your own class that implements this interface, you can create custom audio effects, generators, or other processing tools and seamlessly insert them anywhere in the pipeline.
 
