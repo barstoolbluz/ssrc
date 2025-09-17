@@ -92,13 +92,9 @@ In simpler terms, this condition ensures that the decimation factor from the con
 
 However, the efficiency of the fast convolution stage degrades as *fsos* (and thus *osm*) increases. To manage this trade-off, this implementation imposes a constraint: **only combinations of *lfs* and *hfs* that result in *osm* &le; 3 are permitted.** This constraint means the converter is not universal; it cannot, in principle, convert between any two arbitrary frequencies. In practice, however, this design choice covers all common sampling frequencies used in audio. It is a trade-off, sacrificing absolute universality for optimized performance in the most common use cases.
 
-### 6. Conclusion
+### 6. Partitioned Convolution Implementation Details
 
-This algorithm for rational sample rate conversion strikes a balance between high fidelity and computational efficiency. By employing a multi-stage architecture with two complementary filter implementations (Polyphase and a fast convolution FIR), it decomposes the filtering problem into manageable parts. This design, constrained by the *osm* parameter for practical efficiency, provides a robust and high-quality solution for the most common sample rate conversion tasks in audio engineering.
-
-### 7. PartDFTFilter Implementation Details
-
-A primary goal of this sample rate converter is to be suitable for real-time applications. In such use cases, processing latency is a critical factor; a long delay between input and output can make an application unusable. The high-order FIR filters required for high-quality conversion inherently introduce significant latency. To overcome this, this implementation employs a dual strategy: using **minimum-phase filters** to reduce the intrinsic filter delay, and using **Partitioned Convolution** to reduce the delay from block-based processing. The combination of these techniques allows the converter to meet the stringent demands of real-time use.
+One of the primary goals of this sample rate converter is to be suitable for real-time applications. In such use cases, processing latency is a critical factor; a long delay between input and output can make an application unusable. The high-order FIR filters required for high-quality conversion inherently introduce significant latency. To overcome this, this implementation employs a dual strategy: using **minimum-phase filters** to reduce the intrinsic filter delay, and using **Partitioned Convolution** to reduce the delay from block-based processing. The combination of these techniques allows the converter to meet the stringent demands of real-time use.
 
 The fast convolution FIR filter described in this document is implemented by the `PartDFTFilter` class. This class uses an advanced technique known as **Partitioned Convolution** to efficiently apply a very long FIR filter while maintaining low processing latency.
 
