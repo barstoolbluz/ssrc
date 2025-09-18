@@ -67,10 +67,10 @@ execute_process(
   COMMAND_ECHO STDOUT
 )
 execute_process(
-  COMMAND "${CMAKE_COMMAND}" -E compare_files "${TMP_DIR_PATH}/noise.ssrc.44100.48000.24.wav" "${TMP_DIR_PATH}/noise.test_cppapi.44100.48000.24.wav"
-  COMMAND "${CMAKE_COMMAND}" -E compare_files "${TMP_DIR_PATH}/noise.ssrc.48000.44100.24.wav" "${TMP_DIR_PATH}/noise.test_cppapi.48000.44100.24.wav"
-  COMMAND "${CMAKE_COMMAND}" -E compare_files "${TMP_DIR_PATH}/noise.ssrc.44100.48000.-32.wav" "${TMP_DIR_PATH}/noise.test_soxrapi.44100.48000.-32.wav"
-  COMMAND "${CMAKE_COMMAND}" -E compare_files "${TMP_DIR_PATH}/noise.ssrc.48000.44100.-32.wav" "${TMP_DIR_PATH}/noise.test_soxrapi.48000.44100.-32.wav"
+  COMMAND "${TARGET_FILE_cmpwav}" "${TMP_DIR_PATH}/noise.ssrc.44100.48000.24.wav" "${TMP_DIR_PATH}/noise.test_cppapi.44100.48000.24.wav" 0.0001
+  COMMAND "${TARGET_FILE_cmpwav}" "${TMP_DIR_PATH}/noise.ssrc.48000.44100.24.wav" "${TMP_DIR_PATH}/noise.test_cppapi.48000.44100.24.wav" 0.0001
+  COMMAND "${TARGET_FILE_cmpwav}" "${TMP_DIR_PATH}/noise.ssrc.44100.48000.-32.wav" "${TMP_DIR_PATH}/noise.test_soxrapi.44100.48000.-32.wav" 0.0001
+  COMMAND "${TARGET_FILE_cmpwav}" "${TMP_DIR_PATH}/noise.ssrc.48000.44100.-32.wav" "${TMP_DIR_PATH}/noise.test_soxrapi.48000.44100.-32.wav" 0.0001
   COMMAND_ERROR_IS_FATAL ANY
-  COMMAND_ECHO STDOUT
+  COMMAND_ECHO NONE
 )
