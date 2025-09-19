@@ -96,11 +96,9 @@ However, the efficiency of the fast convolution stage degrades as *fsos* (and th
 
 One of the primary goals of this sample rate converter is to be suitable for real-time applications. In such use cases, processing latency is a critical factor; a long delay between input and output can make an application unusable. The high-order FIR filters required for high-quality conversion inherently introduce significant latency. To overcome this, this implementation employs a dual strategy: using **minimum-phase filters** to reduce the intrinsic filter delay, and using **Partitioned Convolution** to reduce the delay from block-based processing. The combination of these techniques allows the converter to meet the stringent demands of real-time use.
 
-The fast convolution FIR filter described in this document is implemented by the `PartDFTFilter` class. This class uses an advanced technique known as **Partitioned Convolution** to efficiently apply a very long FIR filter while maintaining low processing latency.
-
 #### The Challenge: Latency in Fast Convolution
 
-Standard FFT-based fast convolution is very efficient for applying long filters. However, it introduces a significant delay (latency). To convolve a signal, the algorithm must collect a full block of input samples (e.g., 4096 samples) before it can perform the FFT, multiply the frequency-domain representations, and perform the inverse FFT. The output is only available after this entire block is processed, resulting in a latency of at least the block size. For real-time audio, this delay can be unacceptable.
+Standard FFT-based fast convolution is very efficient for applying long filters. However, it introduces a significant delay (latency). To convolve a signal, the algorithm must collect a full block of input samples (e.g., 4096 samples) before it can perform the FFT, multiply the frequency-domain representations, and perform the inverse FFT. The output is only available after this entire block is processed, resulting in a latency of at least the block size. This latency cannot be reduced no matter how fast the computer is. For real-time audio, this delay can be unacceptable.
 
 #### Solution: Partitioned Convolution
 
@@ -118,4 +116,4 @@ The filter's impulse response is partitioned into blocks of *different sizes*:
 - The **beginning** of the impulse response, which has the most significant impact on initial latency, is split into **many small partitions**. These are processed frequently with small, fast FFTs.
 - The **tail** of the impulse response is grouped into a **few large partitions**. These are processed less frequently, which is more computationally efficient as it requires fewer FFT operations overall.
 
-This hybrid approach allows the filter to achieve both the extremely low latency of short filters and the high frequency precision and computational efficiency of long filters. The `PartDFTFilter` class manages this complex processing, and the underlying DFT calculations are accelerated using the `SleefDFT` library, which leverages SIMD instructions for high-speed processing.
+This hybrid approach allows the filter to achieve both the extremely low latency of short filters and the high frequency precision and computational efficiency of long filters. The `PartDFTFilter` class efficiently performs this complex processing by exponentially increasing the lengths of the applied filters. The underlying DFT calculations are accelerated using the `SleefDFT` library, which leverages SIMD instructions for high-speed processing.

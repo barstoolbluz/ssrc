@@ -116,6 +116,8 @@ void showUsage(const string& argv0, const string& mes = "") {
   cerr << "                                       fast : Enough quality for almost every purpose" << endl;
   cerr << "                                       help : Show all available options" << endl;
   cerr << "          --minPhase                 Use minimum phase filters instead of linear phase filters" << endl;
+  cerr << "          --partConv <log2len>       Divide a long filter into smaller sub-filters to apply"<< endl;
+  cerr << "                                     them without significant processing delays." << endl;
   cerr << "          --dstContainer <name>      Select a container of output file" << endl;
   cerr << "                                       riff : The most common WAV format" << endl;
   cerr << "                                       help : Show all available options" << endl;
@@ -396,7 +398,7 @@ struct Pipeline {
 
     //
 
-    int64_t timeStart = 0;
+    int64_t timeBeforeInit = 0, timeBeforeExec = 0;
 
     if (debug) {
       cerr << "srcfn = "        << srcfn << endl;
@@ -461,7 +463,7 @@ struct Pipeline {
       cerr << "sweepStart = "   << sweepStart << endl;
       cerr << "sweepEnd = "     << sweepStart << endl;
 
-      timeStart = timeus();
+      timeBeforeInit = timeus();
     }
 
     shared_ptr<OutletProvider<REAL>> in = origin;
@@ -490,6 +492,8 @@ struct Pipeline {
 
       auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out, 0) :
 	make_shared<WavWriter<REAL>>("", dstFormat, dstContainer, out, nFrames);
+
+      timeBeforeExec = timeus();
 
       writer->execute();
     } else {
@@ -523,13 +527,16 @@ struct Pipeline {
       auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out, 0) :
 	make_shared<WavWriter<int32_t>>("", dstFormat, dstContainer, out, nFrames);
 
+      timeBeforeExec = timeus();
+
       writer->execute();
     }
 
     if (debug) {
       cerr << endl << "Delay : " << delay << " samples" << endl;
       int64_t timeEnd = timeus();
-      cerr << endl << "Elapsed time : " << ((timeEnd - timeStart) * 0.000001) << " seconds" << endl;
+      cerr << endl << "Elapsed time : " << ((timeEnd - timeBeforeInit) * 0.000001) << " seconds" << endl;
+      if (dst != STDOUT) cerr << "Processing time : " << ((timeEnd - timeBeforeExec) * 0.000001) << " seconds" << endl;
     }
   }
 };

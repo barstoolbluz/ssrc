@@ -143,6 +143,8 @@ namespace shibatch {
       dftflen(1LL << l2dftflen_), mindftflen(l2mindftflen_ == 0 ? 0 : (1LL << l2mindftflen_)),
       aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_) {
 
+      if (l2mindftflen_ > l2dftflen_) throw(std::runtime_error("SSRCStage::SSRCStage l2mindftflen > l2dftflen"));
+
       if (fslcm/hfs == 1) osm = 1;
       else if (fslcm/hfs % 2 == 0) osm = 2;
       else if (fslcm/hfs % 3 == 0) osm = 3;

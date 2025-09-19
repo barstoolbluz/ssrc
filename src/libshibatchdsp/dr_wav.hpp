@@ -327,7 +327,7 @@ namespace dr_wav {
     uint32_t getNChannels() const { return wav.fmt.channels; }
     bool isFloat() const { return wav.fmt.formatTag == Format::IEEE_FLOAT; }
 
-    uint32_t getNFrames() {
+    uint64_t getNFrames() {
       drwav_uint64 c = 0;
       checkResult(drwav_get_length_in_pcm_frames(&wav, &c), "WavFile::getNFrames");
       return c;
