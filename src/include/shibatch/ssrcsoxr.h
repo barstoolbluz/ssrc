@@ -53,18 +53,28 @@ ssrc_soxr_quality_spec_t ssrc_soxr_quality_spec(
 #define SSRC_SOXR_HQ 4
 #define SSRC_SOXR_VHQ 6
 
+// runtime_spec
+
+typedef struct ssrc_soxr_runtime_spec ssrc_soxr_runtime_spec_t;
+
+struct ssrc_soxr_runtime_spec {
+  unsigned num_threads;
+};
+
 //
 
 struct ssrc_soxr *ssrc_soxr_create(
   double input_rate, double output_rate, unsigned num_channels,
-  ssrc_soxr_error_t *eptr, ssrc_soxr_io_spec_t const *iospec, ssrc_soxr_quality_spec_t const *qspec,
-  void const *rtspec);
+  ssrc_soxr_error_t *eptr, ssrc_soxr_io_spec_t const *iospec,
+  ssrc_soxr_quality_spec_t const *qspec,
+  ssrc_soxr_runtime_spec_t const *rtspec);
 
 ssrc_soxr_error_t ssrc_soxr_process(
   struct ssrc_soxr *thiz,
   void const *in, size_t ilen, size_t *idone,
   void *out, size_t olen, size_t *odone);
 
+ssrc_soxr_error_t ssrc_soxr_clear(struct ssrc_soxr *thiz);
 void ssrc_soxr_delete(struct ssrc_soxr *thiz);
 
 double ssrc_soxr_delay(struct ssrc_soxr *thiz);
@@ -106,6 +116,7 @@ static inline soxr_error_t soxr_process(
   return ssrc_soxr_process(thiz, in, ilen, idone, out, olen, odone);
 }
 
+static inline soxr_error_t soxr_clear(struct ssrc_soxr *thiz) { return ssrc_soxr_clear(thiz); }
 static inline void soxr_delete(struct ssrc_soxr *thiz) { ssrc_soxr_delete(thiz); }
 static inline double soxr_delay(struct ssrc_soxr *thiz) { return ssrc_soxr_delay(thiz); }
 

@@ -63,9 +63,10 @@ cat input.wav | ssrc --stdin [options] --stdout > output.wav
 | `--bits <number of bits>`  | Specify the output quantization bit depth. Common values are `16`, `24`, `32`. Use `-32` or `-64` for 32-bit or 64-bit IEEE floating-point output. Default: `16`. |
 | `--dither <type>`          | Select a dithering/noise shaping algorithm by ID. Use `--dither help` to see all available types for different sample rates. |
 | `--mixChannels <matrix>`   | Mix, re-route, or change the number of channels. See the "Channel Mixing" section below for details and examples. |
-| `--minPhase`               | Use minimum-phase filters instead of the default linear-phase filters, which makes the processing delay negligible. |
 | `--pdf <type> [<amp>]`     | Select a Probability Distribution Function (PDF) for dithering. `0`: Rectangular, `1`: Triangular. Default: `0`. |
 | `--profile <name>`         | Select a conversion quality/speed profile. Use `--profile help` for details. Default: `standard`. |
+| `--minPhase`               | Use minimum-phase filters instead of the default linear-phase filters, which makes the processing delay negligible. |
+| `--partConv <log2len>`     | Divide a long filter into smaller sub-filters so that they can be applied without significant processing delays. |
 | `--dstContainer <name>`    | Specify the output file container type (`riff`, `w64`, `rf64`, etc.). Use `--dstContainer help` for options. Defaults to the source container or `riff`. |
 | `--genImpulse ...`         | For testing. Generate an impulse signal instead of reading a file.                             |
 | `--genSweep ...`           | For testing. Generate a sweep signal instead of reading a file.                                |
@@ -91,7 +92,9 @@ Profiles allow you to balance between conversion speed and quality (stop-band at
 |--------------|------------|-------------|-----------|----------------------------------------|
 | `insane`     | 262144     | 200 dB      | double    | Highest possible quality, very slow.   |
 | `high`       | 65536      | 170 dB      | double    | Excellent quality for audiophiles.     |
+| `long`       | 32768      | 145 dB      | double    | Superb quality.                        |
 | `standard`   | 16384      | 145 dB      | single    | Great quality, default setting.        |
+| `short`      | 4096       | 96 dB       | single    | Good quality.                          |
 | `fast`       | 1024       | 96 dB       | single    | Good quality, suitable for most uses.  |
 | `lightning`  | 256        | 96 dB       | single    | Low latency, suitable for real-time uses. |
 

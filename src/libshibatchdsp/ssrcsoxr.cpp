@@ -228,6 +228,16 @@ struct ssrc_soxr {
   ssrc_soxr_datatype_t itype, otype;
   double delay;
 
+  //
+
+  double input_rate, output_rate;
+  unsigned num_channels;
+  ssrc_soxr_io_spec_t iospec;
+  ssrc_soxr_quality_spec_t qspec;
+  ssrc_soxr_runtime_spec_t rtspec;
+
+  //
+
   shared_ptr<Soxifier<float, float>> f32f32;
   shared_ptr<Soxifier<double, double>> f64f64;
 };
@@ -256,8 +266,10 @@ ssrc_soxr_quality_spec_t ssrc_soxr_quality_spec(unsigned long recipe, unsigned l
 }
 
 struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsigned num_channels,
-				   ssrc_soxr_error_t *eptr, ssrc_soxr_io_spec_t const *iospec,
-				   ssrc_soxr_quality_spec_t const *qspec, void const *rtspec) {
+				   ssrc_soxr_error_t *eptr,
+				   ssrc_soxr_io_spec_t      const *iospec,
+				   ssrc_soxr_quality_spec_t const *qspec,
+				   ssrc_soxr_runtime_spec_t const *rtspec) {
   if (rint(input_rate) != input_rate || rint(output_rate) != output_rate) {
     *eptr = "ssrc_soxr_create : Unsupported sample rate";
     return nullptr;
@@ -270,27 +282,37 @@ struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsign
     *eptr = "ssrc_soxr_create : Unsupported iospec";
     return nullptr;
   }
-  if (rtspec) {
-    *eptr = "ssrc_soxr_create : rtspec must be NULL";
-    return nullptr;
-  }
 
   ssrc_soxr *thiz = nullptr;
 
   try {
     thiz = new ssrc_soxr();
 
+    //
+
     thiz->itype = iospec->itype;
     thiz->otype = iospec->otype;
+
+    thiz->input_rate = input_rate;
+    thiz->output_rate = output_rate;
+    thiz->num_channels = num_channels;
+    thiz->iospec = *iospec;
+
+    ssrc_soxr_quality_spec_t q = { 14, 145, 2, SSRC_SOXR_FLOAT32 };
+    if (qspec) q = *qspec;
+    thiz->qspec = q;
+
+    ssrc_soxr_runtime_spec_t rt = { 1 };
+    if (rtspec) rt = *rtspec;
+    thiz->rtspec = rt;
+
+    //
 
     auto xifier = make_shared<Soxifier<float, float>>(num_channels);
 
     thiz->f32f32 = xifier;
 
     vector<shared_ptr<StageOutlet<float>>> out(num_channels);
-
-    ssrc_soxr_quality_spec_t q = { 14, 145, 2, SSRC_SOXR_FLOAT32 };
-    if (qspec) q = *qspec;
 
     for(unsigned i=0;i<num_channels;i++) {
       auto ssrc = make_shared<SSRC<float>>(xifier->getOutlet(i), input_rate, output_rate, q.log2dftfilterlen, q.aa, q.guard);
@@ -347,6 +369,35 @@ ssrc_soxr_error_t ssrc_soxr_process(struct ssrc_soxr *thiz,
 
     return errorString[this_thread::get_id()].c_str();
   }
+}
+
+ssrc_soxr_error_t ssrc_soxr_clear(struct ssrc_soxr *thiz) {
+  if (thiz->magic != MAGIC) {
+    cerr << "ssrc_soxr_clear : thiz->magic != MAGIC" << endl;
+    abort();
+  }
+
+  try {
+    auto xifier = make_shared<Soxifier<float, float>>(thiz->num_channels);
+
+    thiz->f32f32 = xifier;
+
+    vector<shared_ptr<StageOutlet<float>>> out(thiz->num_channels);
+
+    for(unsigned i=0;i<thiz->num_channels;i++) {
+      auto ssrc = make_shared<SSRC<float>>(xifier->getOutlet(i), thiz->input_rate, thiz->output_rate,
+					   thiz->qspec.log2dftfilterlen, thiz->qspec.aa, thiz->qspec.guard);
+      thiz->delay = ssrc->getDelay();
+      out[i] = ssrc;
+    }
+
+    xifier->clamp(out);
+
+    xifier->start(WavFormat(WavFormat::IEEE_FLOAT, thiz->num_channels, thiz->output_rate, 32));
+  } catch(exception &ex) {
+  }
+
+  return nullptr;
 }
 
 void ssrc_soxr_delete(struct ssrc_soxr *thiz) {

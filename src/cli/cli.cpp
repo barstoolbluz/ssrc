@@ -116,8 +116,8 @@ void showUsage(const string& argv0, const string& mes = "") {
   cerr << "                                       fast : Enough quality for almost every purpose" << endl;
   cerr << "                                       help : Show all available options" << endl;
   cerr << "          --minPhase                 Use minimum phase filters instead of linear phase filters" << endl;
-  cerr << "          --partConv <log2len>       Divide a long filter into smaller sub-filters to apply"<< endl;
-  cerr << "                                     them without significant processing delays." << endl;
+  cerr << "          --partConv <log2len>       Divide a long filter into smaller sub-filters so that they"<< endl;
+  cerr << "                                     can be applied without significant processing delays." << endl;
   cerr << "          --dstContainer <name>      Select a container of output file" << endl;
   cerr << "                                       riff : The most common WAV format" << endl;
   cerr << "                                       help : Show all available options" << endl;

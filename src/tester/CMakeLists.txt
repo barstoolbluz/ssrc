@@ -16,6 +16,7 @@ add_custom_command(
   COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 44100 2 100000 0 0 --rate 44100 --bits 16 "${TMP_DIR_PATH}/noise.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 48000 2 100000 0 0 --rate 48000 --bits 16 "${TMP_DIR_PATH}/noise.48000.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 44100 2 441000 10000 10000 --rate 44100 --bits -64 "${TMP_DIR_PATH}/sin10k.44100.wav"
+  COMMAND $<TARGET_FILE:ssrc> --genSweep 44100 2 441000 12000 12000 --rate 44100 --bits -64 "${TMP_DIR_PATH}/sin12k.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 48000 2 480000 10000 10000 --rate 48000 --bits -64 "${TMP_DIR_PATH}/sin10k.48000.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 96000 2 960000 10000 10000 --rate 96000 --bits -64 "${TMP_DIR_PATH}/sin10k.96000.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 44100 1 441000 10000 10000 --rate 44100 --bits -64 "${TMP_DIR_PATH}/sin10k.mono.44100.wav"
@@ -34,6 +35,7 @@ add_dependencies(test_cppapi generate_test_data)
 
 add_test(NAME test_api COMMAND "${CMAKE_COMMAND}"
   -D TARGET_FILE_ssrc=$<TARGET_FILE:ssrc>
+  -D TARGET_FILE_scsa=$<TARGET_FILE:scsa>
   -D TARGET_FILE_test_cppapi=$<TARGET_FILE:test_cppapi>
   -D TARGET_FILE_test_soxrapi=$<TARGET_FILE:test_soxrapi>
   -D TARGET_FILE_cmpwav=$<TARGET_FILE:cmpwav>
