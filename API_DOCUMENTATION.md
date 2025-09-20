@@ -655,13 +655,29 @@ Processes a chunk of audio data.
 
 Returns an error code if an error occurs during processing.
 
+#### `soxr_error_t soxr_clear(soxr_t soxr)`
+Resets the resampler to its initial state, clearing all internal buffers. This is useful for processing a new signal with the same configuration without the overhead of destroying and recreating the resampler.
+
 #### `void soxr_delete(soxr_t soxr)`
 Frees all memory and resources associated with the resampler handle.
 
 #### `double soxr_delay(soxr_t soxr)`
 Returns the processing delay of the resampler in samples. This represents the number of zero samples that should be discarded from the beginning of the output to maintain signal synchronization.
 
-### 3.3. Configuration
+### 3.3. One-Shot (Single-Call) Resampling
+
+For convenience, the API provides a "one-shot" function to resample a signal that is already entirely in memory. This function handles the creation, processing, flushing, and deletion of a resampler in a single call.
+
+#### `soxr_error_t soxr_oneshot(in_rate, out_rate, num_ch, in, ilen, *idone, out, olen, *odone, *io_spec, *q_spec, *rt_spec)`
+Resamples a block of in-memory audio data in a single function call.
+
+-   `in_rate`, `out_rate`, `num_ch`: The sample rates and channel count.
+-   `in`, `ilen`: Pointer to the input buffer and its length in frames.
+-   `out`, `olen`: Pointer to the output buffer and its capacity in frames.
+-   `idone`, `odone`: Pointers to store the number of frames consumed and produced.
+-   `io_spec`, `q_spec`, `rt_spec`: (Optional) Pointers to I/O, quality, and runtime specifications.
+
+### 3.4. Configuration
 
 #### `soxr_io_spec_t soxr_io_spec(itype, otype)`
 This helper function creates an I/O specification object.
@@ -679,7 +695,7 @@ This helper function creates a quality specification object.
     -   `SSRC_SOXR_TPDF`: Use triangular dithering.
     -   `SSRC_SOXR_NO_DITHER`: Do not use dither.
 
-### 3.4. Complete Example
+### 3.5. Complete Example
 
 This example demonstrates how to convert a WAV file from one sample rate to another. It uses the popular `dr_wav` single-file library for file I/O, which is included in this repository for convenience.
 
