@@ -247,6 +247,7 @@ ssrc_soxr_io_spec_t ssrc_soxr_io_spec(ssrc_soxr_datatype_t itype, ssrc_soxr_data
   ret.itype = itype;
   ret.otype = otype;
   ret.ditherType = 0;
+  ret.flags = 0;
   return ret;
 }
 
@@ -407,6 +408,76 @@ void ssrc_soxr_delete(struct ssrc_soxr *thiz) {
   }
   thiz->magic = 0;
   delete thiz;
+}
+
+ssrc_soxr_error_t ssrc_soxr_oneshot(double in_rate, double out_rate, unsigned num_channels,
+				    void const * in, size_t in_len, size_t * in_rd,
+				    void * out, size_t out_len, size_t * out_wr,
+				    ssrc_soxr_io_spec_t const * io_spec,
+				    ssrc_soxr_quality_spec_t const * q_spec,
+				    ssrc_soxr_runtime_spec_t const * runtime_spec) {
+  if (in_rd) *in_rd = 0;
+  if (out_wr) *out_wr = 0;
+
+  ssrc_soxr_error_t error;
+  ssrc_soxr *soxr = ssrc_soxr_create(in_rate, out_rate, num_channels, &error, io_spec, q_spec, runtime_spec);
+
+  if (!soxr) return error;
+
+  size_t total_frames_read = 0;
+  size_t total_frames_written = 0;
+
+  char * current_out_ptr = (char *)out;
+  size_t remaining_out_capacity_frames = out_len;
+    
+  unsigned bytes_per_frame = 0;
+  switch(io_spec->otype) {
+  case SSRC_SOXR_FLOAT32_I: bytes_per_frame = sizeof(float) * num_channels; break;
+  case SSRC_SOXR_FLOAT64_I: bytes_per_frame = sizeof(double) * num_channels; break;
+  default: return "Unsupported otype";
+  }
+
+  size_t frames_consumed = 0;
+  size_t frames_produced = 0;
+    
+  if (in && in_len > 0) {
+    error = ssrc_soxr_process(soxr, in, in_len, &frames_consumed,
+			      current_out_ptr, remaining_out_capacity_frames, &frames_produced);
+
+    total_frames_read += frames_consumed;
+    total_frames_written += frames_produced;
+
+    current_out_ptr += frames_produced * bytes_per_frame;
+    if (remaining_out_capacity_frames >= frames_produced) {
+      remaining_out_capacity_frames -= frames_produced;
+    } else {
+      remaining_out_capacity_frames = 0;
+    }
+  }
+
+  if (!error) {
+    do {
+      if (remaining_out_capacity_frames == 0) break;
+
+      error = ssrc_soxr_process(soxr, NULL, 0, NULL,
+				current_out_ptr, remaining_out_capacity_frames, &frames_produced);
+
+      total_frames_written += frames_produced;
+      current_out_ptr += frames_produced * bytes_per_frame;
+      if (remaining_out_capacity_frames >= frames_produced) {
+	remaining_out_capacity_frames -= frames_produced;
+      } else {
+	remaining_out_capacity_frames = 0;
+      }
+    } while (!error && frames_produced > 0);
+  }
+    
+  ssrc_soxr_delete(soxr);
+
+  if (in_rd) *in_rd = total_frames_read;
+  if (out_wr) *out_wr = total_frames_written;
+
+  return error;
 }
 
 double ssrc_soxr_delay(struct ssrc_soxr *thiz) {

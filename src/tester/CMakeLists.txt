@@ -5,6 +5,10 @@ add_executable(test_soxrapi test_soxrapi.c)
 target_link_libraries(test_soxrapi shibatchdsp ${SLEEF_LIBRARIES})
 target_include_directories(test_soxrapi PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchdsp")
 
+add_executable(test_oneshot test_oneshot.c)
+target_link_libraries(test_oneshot shibatchdsp ${SLEEF_LIBRARIES})
+target_include_directories(test_oneshot PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchdsp")
+
 add_executable(cmpwav cmpwav.cpp)
 target_link_libraries(cmpwav shibatchdsp ${SLEEF_LIBRARIES})
 target_include_directories(cmpwav PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchdsp")
@@ -38,6 +42,7 @@ add_test(NAME test_api COMMAND "${CMAKE_COMMAND}"
   -D TARGET_FILE_scsa=$<TARGET_FILE:scsa>
   -D TARGET_FILE_test_cppapi=$<TARGET_FILE:test_cppapi>
   -D TARGET_FILE_test_soxrapi=$<TARGET_FILE:test_soxrapi>
+  -D TARGET_FILE_test_oneshot=$<TARGET_FILE:test_oneshot>
   -D TARGET_FILE_cmpwav=$<TARGET_FILE:cmpwav>
   -D TMP_DIR_PATH=${TMP_DIR_PATH}
   -P ${CMAKE_CURRENT_LIST_DIR}/test_api.cmake

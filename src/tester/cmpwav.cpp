@@ -16,7 +16,8 @@ double compare(const string& file0, const string& file1) {
   if (wav0.getNChannels() != wav1.getNChannels()) throw(runtime_error("Number of channels does not match"));
   if (wav0.getSampleRate() != wav1.getSampleRate()) throw(runtime_error("Sample rates do not match"));
   if (wav0.getNFrames() != wav1.getNFrames())
-    throw(runtime_error(("Number of frames does not match : " + to_string(wav0.getNFrames()) + " vs. " + to_string(wav1.getNFrames())).c_str()));
+    throw(runtime_error(("Number of frames does not match : " + file0 + ":" + to_string(wav0.getNFrames()) +
+			 " vs. " + file1 + ":" + to_string(wav1.getNFrames())).c_str()));
 
   const unsigned nch = wav0.getNChannels();
 

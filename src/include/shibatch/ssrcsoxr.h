@@ -24,6 +24,7 @@ typedef struct ssrc_soxr_io_spec ssrc_soxr_io_spec_t;
 struct ssrc_soxr_io_spec {
   ssrc_soxr_datatype_t itype, otype;
   unsigned ditherType;
+  unsigned long flags;
 };
 
 ssrc_soxr_io_spec_t ssrc_soxr_io_spec(
@@ -79,12 +80,20 @@ void ssrc_soxr_delete(struct ssrc_soxr *thiz);
 
 double ssrc_soxr_delay(struct ssrc_soxr *thiz);
 
+ssrc_soxr_error_t ssrc_soxr_oneshot(double in_rate, double out_rate, unsigned num_channels,
+				    void const *in, size_t in_len, size_t *in_rd,
+				    void *out, size_t out_len, size_t *out_wr,
+				    ssrc_soxr_io_spec_t const *io_spec,
+				    ssrc_soxr_quality_spec_t const *q_spec,
+				    ssrc_soxr_runtime_spec_t const *runtime_spec);
+
 //
 
 #ifdef SSRC_LIBSOXR_EMULATION
 typedef ssrc_soxr_error_t soxr_error_t;
 typedef ssrc_soxr_io_spec_t soxr_io_spec_t;
 typedef ssrc_soxr_quality_spec_t soxr_quality_spec_t;
+typedef ssrc_soxr_runtime_spec_t soxr_runtime_spec_t;
 typedef struct ssrc_soxr * soxr_t;
 
 typedef enum {
@@ -114,6 +123,17 @@ static inline soxr_error_t soxr_process(
   void const *in, size_t ilen, size_t *idone,
   void *out, size_t olen, size_t *odone) {
   return ssrc_soxr_process(thiz, in, ilen, idone, out, olen, odone);
+}
+
+static inline soxr_error_t soxr_oneshot(double in_rate, double out_rate, unsigned num_channels,
+					void const *in, size_t in_len, size_t *in_rd,
+					void *out, size_t out_len, size_t *out_wr,
+					soxr_io_spec_t const *io_spec,
+					soxr_quality_spec_t const *q_spec,
+					soxr_runtime_spec_t const *runtime_spec) {
+  return ssrc_soxr_oneshot(in_rate, out_rate, num_channels,
+			   in, in_len, in_rd, out, out_len, out_wr,
+			   io_spec, q_spec, runtime_spec);
 }
 
 static inline soxr_error_t soxr_clear(struct ssrc_soxr *thiz) { return ssrc_soxr_clear(thiz); }
