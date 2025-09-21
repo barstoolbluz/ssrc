@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
       double maxDif = compare(argv[1], argv[2]);
       cerr << "Max difference : " << maxDif << endl;
       return maxDif <= atof(argv[3]) ? 0 : 1;
-    } catch (const std::exception& e) {
+    } catch (const ::std::exception& e) {
       cerr << "Error: " << e.what() << endl;
     }
   } else {
