@@ -64,19 +64,19 @@ pipeline {
             	     }
                 }
 
-                stage('aarch64 linux clang-19') {
+                stage('aarch64 linux clang-18') {
             	     agent { label 'aarch64 && ubuntu24' }
                      options { skipDefaultCheckout() }
             	     steps {
                          cleanWs()
                          checkout scm
 	    	     	 sh '''
-                	 echo "aarch64 clang-19 on" `hostname`
-			 export CC=clang-19
-			 export CXX=clang++-19
+                	 echo "aarch64 clang-18 on" `hostname`
+			 export CC=clang
+			 export CXX=clang++
  			 mkdir build
 			 cd build
-			 cmake -GNinja -DCMAKE_INSTALL_PREFIX=../../install -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld-19" -DENABLE_ASAN=True ..
+			 cmake -GNinja -DCMAKE_INSTALL_PREFIX=../../install -DENABLE_ASAN=True ..
 			 cmake -E time oomstaller ninja -j `nproc`
 		         export CTEST_OUTPUT_ON_FAILURE=TRUE
 		         ctest -j `nproc`
