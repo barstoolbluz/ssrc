@@ -100,6 +100,26 @@ pipeline {
 			 """
 		     }
 		}
+
+                stage('aarch64 macos clang-18') {
+                     agent { label 'macos' }
+                     options { skipDefaultCheckout() }
+                     steps {
+                         cleanWs()
+                         checkout scm
+                         sh '''
+                         eval "$(/opt/homebrew/bin/brew shellenv)"
+                         export CC=/opt/homebrew/opt/llvm@18/bin/clang-18
+                         export CXX=/opt/homebrew/opt/llvm@18/bin/clang++
+                         mkdir build
+                         cd build
+                         cmake -GNinja -DCMAKE_INSTALL_PREFIX=../../install ..
+                         cmake -E time ninja
+                         export CTEST_OUTPUT_ON_FAILURE=TRUE
+                         ctest -j 8
+                         '''
+                     }
+                }
             }
         }
     }
