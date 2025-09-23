@@ -10,7 +10,11 @@
 
 #include "shibatch/ssrc.hpp"
 
+#ifndef _MSC_VER
 #define RESTRICT __restrict__
+#else
+#define RESTRICT
+#endif
 
 namespace shibatch {
   template<typename REAL>

@@ -101,6 +101,23 @@ pipeline {
 		     }
 		}
 
+                stage('x86_64 windows msvc') {
+            	     agent { label 'windows11 && vs2022' }
+                     options { skipDefaultCheckout() }
+            	     steps {
+                         cleanWs()
+                         checkout scm
+		     	 bat """
+			 call "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat"
+			 if not %ERRORLEVEL% == 0 exit /b %ERRORLEVEL%
+			 call "winbuild-msvc.bat" -DCMAKE_BUILD_TYPE=Release
+			 if not %ERRORLEVEL% == 0 exit /b %ERRORLEVEL%
+			 ctest -j 4 --output-on-failure
+			 exit /b %ERRORLEVEL%
+			 """
+		     }
+		}
+
                 stage('aarch64 macos clang-18') {
                      agent { label 'macos' }
                      options { skipDefaultCheckout() }
