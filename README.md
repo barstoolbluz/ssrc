@@ -67,6 +67,7 @@ cat input.wav | ssrc --stdin [options] --stdout > output.wav
 | `--profile <name>`         | Select a conversion quality/speed profile. Use `--profile help` for details. Default: `standard`. |
 | `--minPhase`               | Use minimum-phase filters instead of the default linear-phase filters, which makes the processing delay negligible. |
 | `--partConv <log2len>`     | Divide a long filter into smaller sub-filters so that they can be applied without significant processing delays. |
+| `--st`                     | Disable multithreading (enabled by default).                                                   |
 | `--dstContainer <name>`    | Specify the output file container type (`riff`, `w64`, `rf64`, etc.). Use `--dstContainer help` for options. Defaults to the source container or `riff`. |
 | `--genImpulse ...`         | For testing. Generate an impulse signal instead of reading a file.                             |
 | `--genSweep ...`           | For testing. Generate a sweep signal instead of reading a file.                                |
