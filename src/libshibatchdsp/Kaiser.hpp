@@ -10,6 +10,16 @@
 
 namespace shibatch {
   class KaiserWindow {
+    static std::vector<double> factVector(unsigned n) {
+      if (n == 0) {
+	return std::vector<double>{ 1 };
+      } else {
+	std::vector<double> v = factVector(n-1);
+	v.push_back(tgamma(n+1));
+	return v;
+      }
+    }
+
   public:
     static double sinc(double x) { return x == 0 ? 1 : (sin(x) / x); }
 
@@ -23,11 +33,7 @@ namespace shibatch {
     }
 
     static double izero(double x, int M = 30) {
-      static std::vector<double> factorial;
-      if (factorial.size() == 0) {
-	factorial.resize(180);
-	for(unsigned u=0;u<factorial.size();u++) factorial[u] = tgamma(u + 1);
-      }
+      static std::vector<double> factorial = factVector(180);
 
       double ret = 1;
       for(int m = M;m >= 1;m--) {
