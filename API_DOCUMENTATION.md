@@ -92,6 +92,21 @@ auto resampler = std::make_shared<ssrc::SSRC<float>>(
 #### `ssrc::WavWriter<T>`
 Writes audio data from one or more outlets to a WAV file.
 
+**Constructor**
+`WavWriter(filename, format, container, inlets, nFrames, bufsize, mt)`
+
+-   **`const std::string& filename`**: The path to the output WAV file. If the string is empty, it will write to standard output.
+-   **`const WavFormat& format`**: A `WavFormat` struct defining the output audio format (channels, sample rate, bit depth, etc.).
+-   **`const ContainerFormat& container`**: A `ContainerFormat` struct defining the file container type (e.g., `RIFF`, `W64`).
+-   **`const std::vector<std::shared_ptr<StageOutlet<T>>>& inlets`**: A vector of `StageOutlet` pointers, one for each channel to be written. The writer merges these streams into an interleaved output file.
+-   **`uint64_t nFrames`**: (Optional) The total number of frames to be written. This is primarily used when writing to a non-seekable destination like standard output, where the file header must be written upfront with the final length. Defaults to `0`.
+-   **`size_t bufsize`**: (Optional) The size of the internal buffer used for writing data to disk. Defaults to `65536`.
+-   **`bool mt`**: (Optional) A boolean flag to enable or disable multithreaded file writing. Defaults to `true`. When `false`, all file I/O is performed in a single thread. This can be useful for debugging or in environments with specific threading constraints.
+
+**`execute()` Method**
+This method starts the pipeline. It pulls data from the `inlets`, processes it, and writes it to the destination file. The function blocks until all data from the input stages has been written.
+
+**Example**
 ```cpp
 // Create a vector of outlets (one for each channel)
 std::vector<std::shared_ptr<ssrc::StageOutlet<float>>> outlets;
@@ -102,7 +117,7 @@ outlets.push_back(resampler); // Add the resampler for channel 0
 ssrc::WavFormat dstFormat(ssrc::WavFormat::PCM, channels, 96000, 24); // 96kHz, 24-bit PCM
 ssrc::ContainerFormat dstContainer(ssrc::ContainerFormat::RIFF);
 
-// Create the writer
+// Create the writer (with multithreading enabled by default)
 ssrc::WavWriter<float> writer("output.wav", dstFormat, dstContainer, outlets);
 
 // Execute the entire pipeline (read -> process -> write)
@@ -369,7 +384,7 @@ auto dither_stage = std::make_shared<ssrc::Dither<int32_t, float>>(
 
 The `SSRC` constructor takes three parameters that define the conversion profile, controlling the trade-off between quality and speed.
 
-`SSRC(inlet, sfs, dfs, log2dftfilterlen, aa, guard)`
+`SSRC(inlet, sfs, dfs, log2dftfilterlen, aa, guard, gain, minPhase, l2mindftflen, mt)`
 
 -   **`unsigned log2dftfilterlen`**
     -   **Description**: The base-2 logarithm of the FFT filter length. The actual filter length is `1 << log2dftfilterlen`.
@@ -385,6 +400,25 @@ The `SSRC` constructor takes three parameters that define the conversion profile
     -   **Description**: A factor that determines the width of the guard band between the pass-band (frequencies to keep) and the stop-band (frequencies to remove).
     -   **Impact**: A larger guard band makes the filter's job easier, allowing for faster computation, but it does so by slightly narrowing the range of frequencies that are passed through. This is mostly relevant for conversions between very close sample rates (like 44.1kHz and 48kHz).
     -   **Values**: Typical values range from `1.0` to `8.0`.
+
+-   **`double gain`**
+    -   **Description**: A linear gain multiplier applied to the signal. Defaults to `1.0` (no change).
+    -   **Values**: Any double-precision floating-point value. For example, `0.5` would reduce the signal level by 6 dB.
+
+-   **`bool minPhase`**
+    -   **Description**: A boolean flag to select the filter type. Defaults to `false`.
+    -   **Impact**: When `false` (default), the converter uses **linear-phase filters**, which preserve the waveform's shape but introduce a processing delay equal to half the filter length. When `true`, it uses **minimum-phase filters**, which significantly reduce this delay, making the process suitable for real-time applications. The trade-off is a change in phase response, which is generally inaudible.
+    -   **Values**: `true` or `false`.
+
+-   **`unsigned l2mindftflen` (Log2 Minimum DFT Filter Length)**
+    -   **Description**: When using partitioned convolution for low-latency processing, this parameter sets the base-2 logarithm of the minimum FFT size for the filter partitions. Defaults to `0` (disabled).
+    -   **Impact**: This parameter is key for tuning real-time performance. A non-zero value enables the partitioned convolution algorithm, which breaks the main filter into smaller chunks to reduce latency. A smaller `l2mindftflen` leads to lower latency but higher CPU usage. This is often used in conjunction with `minPhase`.
+    -   **Values**: An unsigned integer, typically between `8` and `12` for real-time applications.
+
+-   **`bool mt` (Multithreading)**
+    -   **Description**: A boolean flag to enable or disable multithreaded processing. Defaults to `true`.
+    -   **Impact**: When `true`, the resampler may use multiple threads to accelerate the computation, particularly the FFT. Setting this to `false` forces the resampler to operate in a single-threaded mode. This is useful for debugging, ensuring determinism, or in environments where thread management is handled externally.
+    -   **Values**: `true` (default) or `false`.
 
 These parameters are bundled together in the command-line tool's "profiles". When using the library directly, you can mix and match these values to create a custom profile tailored to your specific needs.
 
