@@ -16,6 +16,8 @@
 #define M_PI 3.1415926535897932384626433832795028842
 #endif
 
+static const size_t BUFSIZE = 1 << 20;
+
 #include "ArrayQueue.hpp"
 
 #include "shibatch/ssrc.hpp"
@@ -493,8 +495,8 @@ struct Pipeline {
 	}
       }
 
-      auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out, 0, mt) :
-	make_shared<WavWriter<REAL>>("", dstFormat, dstContainer, out, nFrames, mt);
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out, 0, BUFSIZE, mt) :
+	make_shared<WavWriter<REAL>>("", dstFormat, dstContainer, out, nFrames, BUFSIZE, mt);
 
       timeBeforeExec = timeus();
 
@@ -527,8 +529,8 @@ struct Pipeline {
 	}
       }
 
-      auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out, 0, mt) :
-	make_shared<WavWriter<int32_t>>("", dstFormat, dstContainer, out, nFrames, mt);
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out, 0, BUFSIZE, mt) :
+	make_shared<WavWriter<int32_t>>("", dstFormat, dstContainer, out, nFrames, BUFSIZE, mt);
 
       timeBeforeExec = timeus();
 

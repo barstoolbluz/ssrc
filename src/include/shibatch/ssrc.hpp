@@ -136,7 +136,7 @@ namespace ssrc {
   public:
     class WavWriterImpl;
     WavWriter(const std::string &filename, const WavFormat& fmt, const ContainerFormat& cont_,
-	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_, uint64_t nFrames = 0, bool mt_ = true);
+	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_, uint64_t nFrames = 0, size_t bufsize_ = 65536, bool mt_ = true);
     ~WavWriter();
     void execute();
   private:

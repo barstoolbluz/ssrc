@@ -181,10 +181,10 @@ template ContainerFormat WavReader<double>::getContainer();
 template<typename T> WavWriter<T>::WavWriter(const std::string &filename,
 					     const ssrc::WavFormat& fmt_, const ssrc::ContainerFormat& cont_,
 					     const std::vector<std::shared_ptr<StageOutlet<T>>> &in_,
-					     uint64_t nFrames, bool mt_) {
+					     uint64_t nFrames, size_t bufsize_, bool mt_) {
   dr_wav::drwav_fmt fmt;
   memcpy(&fmt, &fmt_, sizeof(fmt));
-  impl = make_shared<WavWriterStage<T>>(filename, fmt, dr_wav::Container(cont_.c), in_, nFrames, 65536, mt_);
+  impl = make_shared<WavWriterStage<T>>(filename, fmt, dr_wav::Container(cont_.c), in_, nFrames, bufsize_, mt_);
 }
 
 template<typename T> WavWriter<T>::~WavWriter() {}
@@ -196,17 +196,17 @@ template<typename T> void WavWriter<T>::execute() {
 //
 
 template WavWriter<int32_t>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				       const std::vector<std::shared_ptr<StageOutlet<int32_t>>> &, uint64_t, bool);
+				       const std::vector<std::shared_ptr<StageOutlet<int32_t>>> &, uint64_t, size_t, bool);
 template WavWriter<int32_t>::~WavWriter();
 template void WavWriter<int32_t>::execute();
 
 template WavWriter<float>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				     const std::vector<std::shared_ptr<StageOutlet<float>>> &, uint64_t, bool);
+				     const std::vector<std::shared_ptr<StageOutlet<float>>> &, uint64_t, size_t, bool);
 template WavWriter<float>::~WavWriter();
 template void WavWriter<float>::execute();
 
 template WavWriter<double>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				      const std::vector<std::shared_ptr<StageOutlet<double>>> &, uint64_t, bool);
+				      const std::vector<std::shared_ptr<StageOutlet<double>>> &, uint64_t, size_t, bool);
 template WavWriter<double>::~WavWriter();
 template void WavWriter<double>::execute();
 

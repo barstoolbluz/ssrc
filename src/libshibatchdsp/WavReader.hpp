@@ -27,7 +27,10 @@ namespace shibatch {
     public:
       WavOutlet(WavReaderStage &reader_, int ch_) : reader(reader_), ch(ch_) {}
       ~WavOutlet() {}
-      bool atEnd() { return queue.size() == 0 && reader.atEnd(); }
+      bool atEnd() {
+	std::unique_lock lock(reader.mtx);
+	return queue.size() == 0 && reader.atEnd();
+      }
 
       size_t read(T *ptr, size_t n) {
 	std::unique_lock lock(reader.mtx);
