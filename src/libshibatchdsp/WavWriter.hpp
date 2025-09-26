@@ -58,15 +58,18 @@ namespace shibatch {
 	for(;;) {
 	  for(unsigned c=0;c<nch;c++) {
 	    bgExecutor->push(Runnable::factory([&, c](void *p) {
-	      size_t z = in[c]->read(cbuf[c].data(), N);
-	      vz[c] = z;
-	      for(size_t i=0;i<z;i++) fbuf[i * nch + c] = cbuf[c][i];
-	      for(size_t i=z;i<N;i++) fbuf[i * nch + c] = 0;
-	    }));
+	      vz[c] = in[c]->read((T*)p, N);
+	    }, cbuf[c].data()));
 	  }
 	  for(unsigned c=0;c<nch;c++) bgExecutor->pop();
+
 	  size_t zmax = 0;
-	  for(unsigned c=0;c<nch;c++) zmax = std::max(vz[c], zmax);
+	  for(unsigned c=0;c<nch;c++) {
+	    size_t z = vz[c];
+	    zmax = std::max(z, zmax);
+	    for(size_t i=0;i<z;i++) fbuf[i * nch + c] = cbuf[c][i];
+	    for(size_t i=z;i<N;i++) fbuf[i * nch + c] = 0;
+	  }
 	  if (zmax == 0) break;
 	  wav.writePCM(fbuf.data(), zmax);
 	}
