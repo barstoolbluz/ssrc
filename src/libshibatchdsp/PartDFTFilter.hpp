@@ -45,6 +45,7 @@ namespace shibatch {
 
     std::shared_ptr<ssrc::StageOutlet<REAL>> in;
     const size_t firlen, maxdftleno2, maxdftlen, l2maxdftlen, mindftlen, mindftleno2, l2mindftlen;
+    const bool mt;
 
     std::vector<REAL> inBuf, overlapBuf, fractionBuf;
     size_t overlapLen = 0, fractionLen = 0, nZeroPadding = 0;
@@ -61,9 +62,9 @@ namespace shibatch {
     size_t dftCount = 0;
 
   public:
-    PartDFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const REAL *fircoef_, size_t firlen_, size_t mindftlen_) :
+    PartDFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const REAL *fircoef_, size_t firlen_, size_t mindftlen_, bool mt_) :
       in(in_), firlen(firlen_), maxdftleno2(toPow2(firlen_)/2), maxdftlen(maxdftleno2 * 2), l2maxdftlen(ilog2(maxdftlen)),
-      mindftlen(toPow2(mindftlen_)), mindftleno2(mindftlen / 2), l2mindftlen(ilog2(mindftlen)) {
+      mindftlen(toPow2(mindftlen_)), mindftleno2(mindftlen / 2), l2mindftlen(ilog2(mindftlen)), mt(mt_) {
 
       inBuf.resize(maxdftleno2 + mindftleno2);
       overlapBuf.resize(maxdftlen);
@@ -107,8 +108,8 @@ namespace shibatch {
       }
     }
 
-    PartDFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const std::vector<REAL> &v, size_t mindftlen_) :
-      PartDFTFilter(in_, v.data(), v.size(), mindftlen_) {}
+    PartDFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const std::vector<REAL> &v, size_t mindftlen_, bool mt_) :
+      PartDFTFilter(in_, v.data(), v.size(), mindftlen_, mt_) {}
 
     ~PartDFTFilter() {}
 

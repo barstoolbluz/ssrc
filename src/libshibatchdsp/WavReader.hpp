@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <deque>
+#include <mutex>
 
 #include "shibatch/ssrc.hpp"
 #include "ArrayQueue.hpp"
@@ -29,6 +30,8 @@ namespace shibatch {
       bool atEnd() { return queue.size() == 0 && reader.atEnd(); }
 
       size_t read(T *ptr, size_t n) {
+	std::unique_lock lock(reader.mtx);
+
 	size_t s = queue.size();
 
 	if (s < n) s += reader.refill(n - s);
@@ -41,6 +44,7 @@ namespace shibatch {
       friend WavReaderStage;
     };
 
+    std::mutex mtx;
     dr_wav::WavFile wav;
     std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> outlet;
     std::vector<T> buf;

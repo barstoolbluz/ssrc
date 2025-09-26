@@ -123,7 +123,7 @@ namespace shibatch {
 
     const int64_t dftflen, mindftflen;
     const double aa, guard, gain;
-    const bool minPhase;
+    const bool minPhase, mt;
     double delay = 0;
 
     int64_t osm, fsos;
@@ -137,11 +137,11 @@ namespace shibatch {
   public:
     SSRCStage(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
 	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1, double gain_ = 1,
-	      bool minPhase_ = false, unsigned l2mindftflen_ = 0) :
+	      bool minPhase_ = false, unsigned l2mindftflen_ = 0, bool mt_ = true) :
       inlet(inlet_), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
       lfs(std::min(sfs_, dfs_)), hfs(std::max(sfs_, dfs_)),
       dftflen(1LL << l2dftflen_), mindftflen(l2mindftflen_ == 0 ? 0 : (1LL << l2mindftflen_)),
-      aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_) {
+      aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_), mt(mt_) {
 
       if (l2mindftflen_ > l2dftflen_) throw(std::runtime_error("SSRCStage::SSRCStage l2mindftflen > l2dftflen"));
 
@@ -193,7 +193,7 @@ namespace shibatch {
 	  dftf = make_shared<DFTFilter<REAL>>(ppf, dftfv);
 	  undersample = make_shared<Undersample>(dftf, fsos, dfs);
 	} else {
-	  pdftf = make_shared<PartDFTFilter<REAL>>(ppf, dftfv, mindftflen);
+	  pdftf = make_shared<PartDFTFilter<REAL>>(ppf, dftfv, mindftflen, mt);
 	  undersample = make_shared<Undersample>(pdftf, fsos, dfs);
 	}
       } else if (dfs < sfs) {
@@ -202,7 +202,7 @@ namespace shibatch {
 	  dftf = make_shared<DFTFilter<REAL>>(oversample, dftfv);
 	  ppf = make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv);
 	} else {
-	  pdftf = make_shared<PartDFTFilter<REAL>>(oversample, dftfv, mindftflen);
+	  pdftf = make_shared<PartDFTFilter<REAL>>(oversample, dftfv, mindftflen, mt);
 	  ppf = make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv);
 	}
       }

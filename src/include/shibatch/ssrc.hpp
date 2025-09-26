@@ -108,7 +108,7 @@ namespace ssrc {
     class SSRCImpl;
     SSRC(std::shared_ptr<StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
 	 unsigned log2dftfilterlen_ = 10, double aa_ = 80, double guard_ = 1, double gain_ = 1,
-	 bool minPhase_ = false, unsigned l2mindftflen_ = 0);
+	 bool minPhase_ = false, unsigned l2mindftflen_ = 0, bool mt_ = true);
     ~SSRC();
     bool atEnd();
     size_t read(REAL *ptr, size_t n);
@@ -136,7 +136,7 @@ namespace ssrc {
   public:
     class WavWriterImpl;
     WavWriter(const std::string &filename, const WavFormat& fmt, const ContainerFormat& cont_,
-	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_, uint64_t nFrames = 0);
+	      const std::vector<std::shared_ptr<StageOutlet<T>>> &in_, uint64_t nFrames = 0, bool mt_ = true);
     ~WavWriter();
     void execute();
   private:

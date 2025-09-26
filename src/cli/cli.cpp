@@ -118,6 +118,7 @@ void showUsage(const string& argv0, const string& mes = "") {
   cerr << "          --minPhase                 Use minimum phase filters instead of linear phase filters" << endl;
   cerr << "          --partConv <log2len>       Divide a long filter into smaller sub-filters so that they"<< endl;
   cerr << "                                     can be applied without significant processing delays." << endl;
+  cerr << "          --st                       Disable multithreading" << endl;
   cerr << "          --dstContainer <name>      Select a container of output file" << endl;
   cerr << "                                       riff : The most common WAV format" << endl;
   cerr << "                                       help : Show all available options" << endl;
@@ -290,7 +291,7 @@ struct Pipeline {
   const vector<vector<double>>& mixMatrix;
   uint64_t seed;
   double att, peak;
-  bool minPhase, quiet, debug;
+  bool minPhase, quiet, debug, mt;
   unsigned l2mindftflen;
 
   enum SrcType src;
@@ -305,14 +306,15 @@ struct Pipeline {
   Pipeline(const string& argv0_, const string &srcfn_, const string &dstfn_,
 	   const string &profileName_, const string &dstContainerName_, uint64_t dstChannelMask_,
 	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_, const vector<vector<double>>& mixMatrix_,
-	   uint64_t seed_, double att_, double peak_, bool minPhase_, bool quiet_, bool debug_, unsigned l2mindftflen_,
+	   uint64_t seed_, double att_, double peak_, bool minPhase_, bool quiet_, bool debug_, bool mt_,
+	   unsigned l2mindftflen_,
 	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
 	   double sweepStart_, double sweepEnd_, int generatorNch_, int generatorFs_, ConversionProfile profile_) :
     argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
     profileName(profileName_), dstContainerName(dstContainerName_), dstChannelMask(dstChannelMask_),
     rate(rate_), bits(bits_), dither(dither_), pdf(pdf_), mixMatrix(mixMatrix_),
-    seed(seed_), att(att_), peak(peak_), minPhase(minPhase_), quiet(quiet_), debug(debug_), l2mindftflen(l2mindftflen_),
-    src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
+    seed(seed_), att(att_), peak(peak_), minPhase(minPhase_), quiet(quiet_), debug(debug_), mt(mt_),
+    l2mindftflen(l2mindftflen_), src(src_), dst(dst_), impulsePeriod(impulsePeriod_), sweepLength(sweepLength_),
     sweepStart(sweepStart_), sweepEnd(sweepEnd_), generatorNch(generatorNch_), generatorFs(generatorFs_), profile(profile_) {}
 
   void execute() {
@@ -435,6 +437,7 @@ struct Pipeline {
       }
 
       cerr << "profileName = "  << profileName << endl;
+      cerr << "mt = "           << mt << endl;
       cerr << "dftfilterlen = " << (1LL << profile.log2dftfilterlen) << endl;
       cerr << "doublePrec = "   << profile.doublePrecision << endl;
       cerr << "aa = "           << profile.aa << endl;
@@ -478,7 +481,7 @@ struct Pipeline {
 
       for(int i=0;i<dnch;i++) {
 	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
-					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase, l2mindftflen);
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase, l2mindftflen, mt);
 	out[i] = ssrc;
 	delay = ssrc->getDelay();
 
@@ -490,8 +493,8 @@ struct Pipeline {
 	}
       }
 
-      auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out, 0) :
-	make_shared<WavWriter<REAL>>("", dstFormat, dstContainer, out, nFrames);
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<REAL>>(dstfn, dstFormat, dstContainer, out, 0, mt) :
+	make_shared<WavWriter<REAL>>("", dstFormat, dstContainer, out, nFrames, mt);
 
       timeBeforeExec = timeus();
 
@@ -509,7 +512,7 @@ struct Pipeline {
 	}
 
 	auto ssrc = make_shared<SSRC<REAL>>(in->getOutlet(i), sfs, dfs,
-					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase, l2mindftflen);
+					    profile.log2dftfilterlen, profile.aa, profile.guard, pow(10, att/-20.0), minPhase, l2mindftflen, mt);
 
 	delay = ssrc->getDelay();
 
@@ -524,8 +527,8 @@ struct Pipeline {
 	}
       }
 
-      auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out, 0) :
-	make_shared<WavWriter<int32_t>>("", dstFormat, dstContainer, out, nFrames);
+      auto writer = dst == FILEOUT ? make_shared<WavWriter<int32_t>>(dstfn, dstFormat, dstContainer, out, 0, mt) :
+	make_shared<WavWriter<int32_t>>("", dstFormat, dstContainer, out, nFrames, mt);
 
       timeBeforeExec = timeus();
 
@@ -580,7 +583,7 @@ int main(int argc, char **argv) {
   double att = 0, peak = 1.0;
   bool minPhase = false;
   vector<vector<double>> mixMatrix;
-  bool quiet = false, debug = false;
+  bool mt = true, quiet = false, debug = false;
   unsigned l2mindftflen = 0;
 
   enum SrcType src = FILEIN;
@@ -707,6 +710,8 @@ int main(int argc, char **argv) {
       quiet = true;
     } else if (string(argv[nextArg]) == "--debug") {
       debug = true;
+    } else if (string(argv[nextArg]) == "--st") {
+      mt = false;
     } else if (string(argv[nextArg]) == "--minPhase") {
       minPhase = true;
     } else if (string(argv[nextArg]) == "--partConv") {
@@ -797,14 +802,14 @@ int main(int argc, char **argv) {
     if (!profile.doublePrecision) {
       Pipeline<float> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
 			       dstChannelMask, rate, bits, dither, pdf, mixMatrix,
-			       seed, att, peak, minPhase, quiet, debug, l2mindftflen,
+			       seed, att, peak, minPhase, quiet, debug, mt, l2mindftflen,
 			       src, dst, impulsePeriod, sweepLength,
 			       sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();
     } else {
       Pipeline<double> pipeline(argv[0], srcfn, dstfn, profileName, dstContainerName,
 				dstChannelMask, rate, bits, dither, pdf, mixMatrix,
-				seed, att, peak, minPhase, quiet, debug, l2mindftflen,
+				seed, att, peak, minPhase, quiet, debug, mt, l2mindftflen,
 				src, dst, impulsePeriod, sweepLength,
 				sweepStart, sweepEnd, generatorNch, generatorFs, profile);
       pipeline.execute();

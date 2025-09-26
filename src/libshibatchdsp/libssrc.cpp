@@ -1,17 +1,100 @@
+#include <vector>
 #include <cstring>
+#include <unordered_set>
 #include "SRC.hpp"
 #include "WavReader.hpp"
 #include "WavWriter.hpp"
 #include "Dither.hpp"
 #include "ChannelMixer.hpp"
+#include "BGExecutor.hpp"
 
 using namespace std;
 using namespace ssrc;
 using namespace shibatch;
 
+//
+
+namespace {
+  class FactoryMadeRunnable : public Runnable {
+    const function<void(void *)> f;
+    void *ptr;
+  public:
+    FactoryMadeRunnable(function<void(void *)> f_, void *ptr_) : f(f_), ptr(ptr_) {}
+    ~FactoryMadeRunnable() {}
+    void run() { f(ptr); }
+  };
+
+  class BGExecutorStatic {
+    const unsigned nth;
+    bool initialized = false;
+    vector<shared_ptr<thread>> vth;
+    unordered_set<class BGExecutor *> regset;
+    BlockingQueue<shared_ptr<Runnable>> queue;
+    mutex mtx;
+
+    void thEntry() {
+      for(;;) {
+	auto r = queue.pop();
+	if (!r) break;
+	r->run();
+	unique_lock lock(mtx);
+	if (regset.count(r->belongsTo)) r->belongsTo->queue.push(r);
+      }
+    }
+
+    void reg(class BGExecutor* x) {
+      unique_lock lock(mtx);
+      if (!initialized) {
+	initialized = true;
+	for(unsigned i=0;i < nth;i++)
+	  vth.push_back(make_shared<thread>(&BGExecutorStatic::thEntry, this));
+      }
+      regset.insert(x);
+    }
+
+    void unreg(class BGExecutor* x) {
+      unique_lock lock(mtx);
+      regset.erase(x);
+    }
+
+  public:
+    BGExecutorStatic() : nth(thread::hardware_concurrency()) {}
+
+    ~BGExecutorStatic() {
+      if (initialized) {
+	for(unsigned i=0;i < nth;i++) queue.push(nullptr);
+	for(auto t : vth) t->join();
+      }
+    }
+
+    friend class shibatch::BGExecutor;
+  };
+
+  BGExecutorStatic bgExecutorStatic;
+}
+
+namespace shibatch {
+  shared_ptr<Runnable> Runnable::factory(function<void(void *)> f, void *p) {
+    return make_shared<FactoryMadeRunnable>(f, p);
+  }
+
+  BGExecutor::BGExecutor() { bgExecutorStatic.reg(this); }
+  BGExecutor::~BGExecutor() { bgExecutorStatic.unreg(this); }
+
+  void BGExecutor::push(shared_ptr<Runnable> job) {
+    job->belongsTo = this;
+    bgExecutorStatic.queue.push(job);
+  }
+
+  shared_ptr<Runnable> BGExecutor::pop() { return queue.pop(); }
+}
+
+//
+
 template<typename REAL> SSRC<REAL>::SSRC(shared_ptr<StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
-					 unsigned l2dftflen_, double aa_, double guard_, double gain_, bool minPhase_, unsigned l2mindftflen_) :
-  impl(make_shared<SSRCStage<REAL>>(inlet_, sfs_, dfs_, l2dftflen_, aa_, guard_, gain_, minPhase_, l2mindftflen_)) {}
+					 unsigned l2dftflen_, double aa_, double guard_, double gain_,
+					 bool minPhase_, unsigned l2mindftflen_, bool mt_) :
+  impl(make_shared<SSRCStage<REAL>>(inlet_, sfs_, dfs_, l2dftflen_, aa_, guard_, gain_, minPhase_, l2mindftflen_, mt_)) {}
 
 template<typename REAL> SSRC<REAL>::~SSRC() {}
 
@@ -29,13 +112,13 @@ template<typename REAL> double SSRC<REAL>::getDelay() {
 
 //
 
-template SSRC<float>::SSRC(shared_ptr<StageOutlet<float>>, int64_t, int64_t, unsigned, double, double, double, bool, unsigned);
+template SSRC<float>::SSRC(shared_ptr<StageOutlet<float>>, int64_t, int64_t, unsigned, double, double, double, bool, unsigned, bool);
 template SSRC<float>::~SSRC();
 template size_t SSRC<float>::read(float *ptr, size_t n);
 template bool SSRC<float>::atEnd();
 template double SSRC<float>::getDelay();
 
-template SSRC<double>::SSRC(shared_ptr<StageOutlet<double>>, int64_t, int64_t, unsigned, double, double, double, bool, unsigned);
+template SSRC<double>::SSRC(shared_ptr<StageOutlet<double>>, int64_t, int64_t, unsigned, double, double, double, bool, unsigned, bool);
 template SSRC<double>::~SSRC();
 template size_t SSRC<double>::read(double *ptr, size_t n);
 template bool SSRC<double>::atEnd();
@@ -97,10 +180,11 @@ template ContainerFormat WavReader<double>::getContainer();
 
 template<typename T> WavWriter<T>::WavWriter(const std::string &filename,
 					     const ssrc::WavFormat& fmt_, const ssrc::ContainerFormat& cont_,
-					     const std::vector<std::shared_ptr<StageOutlet<T>>> &in_, uint64_t nFrames) {
+					     const std::vector<std::shared_ptr<StageOutlet<T>>> &in_,
+					     uint64_t nFrames, bool mt_) {
   dr_wav::drwav_fmt fmt;
   memcpy(&fmt, &fmt_, sizeof(fmt));
-  impl = make_shared<WavWriterStage<T>>(filename, fmt, dr_wav::Container(cont_.c), in_, nFrames);
+  impl = make_shared<WavWriterStage<T>>(filename, fmt, dr_wav::Container(cont_.c), in_, nFrames, 65536, mt_);
 }
 
 template<typename T> WavWriter<T>::~WavWriter() {}
@@ -112,17 +196,17 @@ template<typename T> void WavWriter<T>::execute() {
 //
 
 template WavWriter<int32_t>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				       const std::vector<std::shared_ptr<StageOutlet<int32_t>>> &, uint64_t);
+				       const std::vector<std::shared_ptr<StageOutlet<int32_t>>> &, uint64_t, bool);
 template WavWriter<int32_t>::~WavWriter();
 template void WavWriter<int32_t>::execute();
 
 template WavWriter<float>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				     const std::vector<std::shared_ptr<StageOutlet<float>>> &, uint64_t);
+				     const std::vector<std::shared_ptr<StageOutlet<float>>> &, uint64_t, bool);
 template WavWriter<float>::~WavWriter();
 template void WavWriter<float>::execute();
 
 template WavWriter<double>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				      const std::vector<std::shared_ptr<StageOutlet<double>>> &, uint64_t);
+				      const std::vector<std::shared_ptr<StageOutlet<double>>> &, uint64_t, bool);
 template WavWriter<double>::~WavWriter();
 template void WavWriter<double>::execute();
 
@@ -163,7 +247,7 @@ template bool Dither<int32_t, double>::atEnd();
 //
 
 std::shared_ptr<DoubleRNG> ssrc::createTriangularRNG(double peak, uint64_t seed) {
-  return make_shared<TriangularDoubleRNG>(peak, make_shared<shibatch::LCG64>(seed));
+  return make_shared<TriangularDoubleRNG>(peak, make_shared<LCG64>(seed));
 }
 
 //
