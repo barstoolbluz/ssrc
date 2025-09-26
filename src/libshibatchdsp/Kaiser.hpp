@@ -23,9 +23,15 @@ namespace shibatch {
     }
 
     static double izero(double x, int M = 30) {
+      static std::vector<double> factorial;
+      if (factorial.size() == 0) {
+	factorial.resize(180);
+	for(unsigned u=0;u<factorial.size();u++) factorial[u] = tgamma(u + 1);
+      }
+
       double ret = 1;
       for(int m = M;m >= 1;m--) {
-	double t = pow(x/2, m) / tgamma(m + 1);
+	double t = pow(x/2, m) / factorial[m];
 	ret += t * t;
       }
       return ret;
