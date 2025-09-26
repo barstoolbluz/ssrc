@@ -23,6 +23,17 @@ namespace shibatch {
     const std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> in;
     const bool mt;
     std::shared_ptr<BGExecutor> bgExecutor;
+    BlockingQueue<std::vector<T>> queue;
+
+    void thEntry() {
+      const unsigned nch = wav.getNChannels();
+
+      for(;;) {
+	auto v = queue.pop();
+	if (v.size() == 0) break;
+	wav.writePCM(v.data(), v.size() / nch);
+      }
+    }
 
   public:
     WavWriterStage(const std::string &filename, const dr_wav::drwav_fmt &fmt, const dr_wav::Container& container,
@@ -49,6 +60,7 @@ namespace shibatch {
 	  wav.writePCM(fbuf.data(), zmax);
 	}
       } else {
+	std::thread th(&WavWriterStage::thEntry, this);
 	std::vector<T> fbuf(N * nch);
 	std::vector<size_t> vz(nch);
 	std::vector<std::vector<T>> cbuf(nch);
@@ -71,8 +83,13 @@ namespace shibatch {
 	    for(size_t i=z;i<N;i++) fbuf[i * nch + c] = 0;
 	  }
 	  if (zmax == 0) break;
-	  wav.writePCM(fbuf.data(), zmax);
+	  std::vector<T> v(zmax * nch);
+	  memcpy(v.data(), fbuf.data(), zmax * nch * sizeof(T));
+	  queue.push(std::move(v));
 	}
+
+	queue.push(std::vector<T>(0));
+	th.join();
       }
     }
   };
