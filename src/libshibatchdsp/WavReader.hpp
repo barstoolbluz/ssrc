@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <deque>
+#include <thread>
 #include <mutex>
 
 #include "shibatch/ssrc.hpp"

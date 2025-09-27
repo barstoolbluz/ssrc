@@ -51,7 +51,7 @@ namespace {
       unsigned ri = max(min((int)rint(c.r * 0xff), 0xff), 0);
       unsigned gi = max(min((int)rint(c.g * 0xff), 0xff), 0);
       unsigned bi = max(min((int)rint(c.b * 0xff), 0xff), 0);
-      sprintf(s.data(), "#%02x%02x%02x", ri, gi, bi);
+      snprintf(s.data(), s.size(), "#%02x%02x%02x", ri, gi, bi);
       return os << string(s.data());
     }
   };
