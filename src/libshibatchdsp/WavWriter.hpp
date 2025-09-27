@@ -99,6 +99,8 @@ namespace shibatch {
 	  queue.push(std::move(v));
 	}
 
+	for(unsigned c=0;c<nch;c++) bgExecutor->pop();
+
 	queue.push(std::vector<T>(0));
 	th.join();
       }
