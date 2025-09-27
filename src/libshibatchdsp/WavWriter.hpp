@@ -62,24 +62,35 @@ namespace shibatch {
       } else {
 	std::thread th(&WavWriterStage::thEntry, this);
 	std::vector<T> fbuf(N * nch);
-	std::vector<size_t> vz(nch);
-	std::vector<std::vector<T>> cbuf(nch);
+	std::vector<std::vector<size_t>> vz(2);
 
-	for(unsigned c=0;c<nch;c++) cbuf[c].resize(N);
+	std::vector<std::vector<std::vector<T>>> cbuf(2);
+	for(unsigned p=0;p<2;p++) {
+	  vz[p].resize(nch);
+	  cbuf[p].resize(nch);
+	  for(unsigned c=0;c<nch;c++) cbuf[p][c].resize(N);
+	}
 
-	for(;;) {
-	  for(unsigned c=0;c<nch;c++) {
-	    bgExecutor->push(Runnable::factory([&, c](void *p) {
-	      vz[c] = in[c]->read((T*)p, N);
-	    }, cbuf[c].data()));
-	  }
+	for(unsigned c=0;c<nch;c++) {
+	  bgExecutor->push(Runnable::factory([&, c](void *ptr) {
+	    vz[0][c] = in[c]->read((T*)ptr, N);
+	  }, cbuf[0][c].data()));
+	}
+
+	for(unsigned p=0;;p ^= 1) {
 	  for(unsigned c=0;c<nch;c++) bgExecutor->pop();
+
+	  for(unsigned c=0;c<nch;c++) {
+	    bgExecutor->push(Runnable::factory([&, p, c](void *ptr) {
+	      vz[p ^ 1][c] = in[c]->read((T*)ptr, N);
+	    }, cbuf[p ^ 1][c].data()));
+	  }
 
 	  size_t zmax = 0;
 	  for(unsigned c=0;c<nch;c++) {
-	    size_t z = vz[c];
+	    size_t z = vz[p][c];
 	    zmax = std::max(z, zmax);
-	    for(size_t i=0;i<z;i++) fbuf[i * nch + c] = cbuf[c][i];
+	    for(size_t i=0;i<z;i++) fbuf[i * nch + c] = cbuf[p][c][i];
 	    for(size_t i=z;i<N;i++) fbuf[i * nch + c] = 0;
 	  }
 	  if (zmax == 0) break;

@@ -27,7 +27,7 @@ double compare(const string& file0, const string& file1) {
 
   for(;;) {
     size_t nr0 = wav0.readPCM(buf0.data(), N), nr1 = wav1.readPCM(buf1.data(), N);
-    if (nr0 != nr1) throw(runtime_error("File lengths do not match : "));
+    if (nr0 != nr1) throw(runtime_error("File lengths do not match"));
 
     for(size_t i=0;i<nr0 * nch;i++) maxDif = max(maxDif, abs(buf0[i] - buf1[i]));
 
