@@ -121,8 +121,8 @@ namespace ssrc {
   class WavReader : public OutletProvider<T> {
   public:
     class WavReaderImpl;
-    WavReader(const std::string &filename);
-    WavReader();
+    WavReader(const std::string &filename, bool mt_ = true);
+    WavReader(bool mt_ = true);
     ~WavReader();
     std::shared_ptr<StageOutlet<T>> getOutlet(uint32_t channel);
     WavFormat getFormat();

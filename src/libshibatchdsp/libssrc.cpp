@@ -126,11 +126,11 @@ template double SSRC<double>::getDelay();
 
 //
 
-template<typename T> WavReader<T>::WavReader(const std::string &filename) :
-  impl(make_shared<WavReaderStage<T>>(filename)) {}
+template<typename T> WavReader<T>::WavReader(const std::string &filename, bool mt_) :
+  impl(make_shared<WavReaderStage<T>>(filename, mt_)) {}
 
-template<typename T> WavReader<T>::WavReader() :
-  impl(make_shared<WavReaderStage<T>>()) {}
+template<typename T> WavReader<T>::WavReader(bool mt_) :
+  impl(make_shared<WavReaderStage<T>>(mt_)) {}
 
 template<typename T> WavReader<T>::~WavReader() {}
 
@@ -162,15 +162,15 @@ template<typename T> ContainerFormat WavReader<T>::getContainer() {
 
 //
 
-template WavReader<float>::WavReader(const std::string &filename);
-template WavReader<float>::WavReader();
+template WavReader<float>::WavReader(const std::string &filename, bool mt_);
+template WavReader<float>::WavReader(bool mt_);
 template WavReader<float>::~WavReader();
 template shared_ptr<StageOutlet<float>> WavReader<float>::getOutlet(uint32_t);
 template WavFormat WavReader<float>::getFormat();
 template ContainerFormat WavReader<float>::getContainer();
 
-template WavReader<double>::WavReader(const std::string &filename);
-template WavReader<double>::WavReader();
+template WavReader<double>::WavReader(const std::string &filename, bool mt_);
+template WavReader<double>::WavReader(bool mt_);
 template WavReader<double>::~WavReader();
 template shared_ptr<StageOutlet<double>> WavReader<double>::getOutlet(uint32_t);
 template WavFormat WavReader<double>::getFormat();

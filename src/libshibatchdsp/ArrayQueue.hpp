@@ -3,7 +3,10 @@
 
 #include <deque>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
 #include <cstring>
+#include <cstdlib>
 
 namespace shibatch {
   template<typename T>
@@ -42,6 +45,51 @@ namespace shibatch {
       }
 
       return s;
+    }
+  };
+
+  template<typename T>
+  class BlockingArrayQueue {
+    const size_t capacity;
+    bool closed = false;
+    ArrayQueue<T> aq;
+    std::mutex mtx;
+    std::condition_variable condVar;
+
+  public:
+    BlockingArrayQueue(size_t c) : capacity(c) {}
+
+    size_t size() { return aq.size(); }
+
+    void close() {
+      std::unique_lock lock(mtx);
+      closed = true;
+      condVar.notify_all();
+    }
+
+    void write(std::vector<T> &&v) {
+      std::unique_lock lock(mtx);
+      while(size() >= capacity && !closed) condVar.wait(lock);
+      if (closed) return;
+      condVar.notify_all();
+      aq.write(std::move(v));
+    }
+
+    size_t write(T *ptr, size_t n) {
+      std::unique_lock lock(mtx);
+      while(size() >= capacity && !closed) condVar.wait(lock);
+      if (closed) return 0;
+      size_t z = capacity - size();
+      aq.write(ptr, z);
+      condVar.notify_all();
+      return z;
+    }
+
+    size_t read(T *ptr, size_t n) {
+      std::unique_lock lock(mtx);
+      while(size() == 0 && !closed) condVar.wait(lock);
+      condVar.notify_all();
+      return aq.read(ptr, n);
     }
   };
 }

@@ -331,10 +331,10 @@ struct Pipeline {
 
     switch(src) {
     case FILEIN:
-      origin = make_shared<WavReader<REAL>>(srcfn);
+      origin = make_shared<WavReader<REAL>>(srcfn, mt);
       break;
     case STDIN:
-      origin = make_shared<WavReader<REAL>>();
+      origin = make_shared<WavReader<REAL>>(mt);
       break;
     case IMPULSE:
       origin = make_shared<ImpulseGenerator<REAL>>

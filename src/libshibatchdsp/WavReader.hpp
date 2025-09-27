@@ -47,14 +47,24 @@ namespace shibatch {
       friend WavReaderStage;
     };
 
+    static const size_t N = 1024 * 1024;
+
     std::mutex mtx;
     dr_wav::WavFile wav;
+    const bool mt;
     std::vector<std::shared_ptr<ssrc::StageOutlet<T>>> outlet;
     std::vector<T> buf;
+    std::shared_ptr<std::thread> th;
+    BlockingArrayQueue<T> baq;
 
     size_t refill(size_t n) {
       buf.resize(std::max(n * getNChannels(), buf.size()));
-      size_t z = wav.readPCM(buf.data(), n);
+      size_t z;
+      if (!mt) {
+	z = wav.readPCM(buf.data(), n);
+      } else {
+	z = baq.read(buf.data(), n * getNChannels()) / getNChannels();
+      }
       unsigned nc = getNChannels();
 
       for(unsigned c=0;c<nc;c++) {
@@ -68,17 +78,32 @@ namespace shibatch {
       return z;
     }
 
-  public:
-    WavReaderStage(const std::string &filename) : wav(filename.c_str()) {
-      outlet.resize(getNChannels());
-      for(unsigned ch=0;ch<getNChannels();ch++)
-	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
+    void thEntry() {
+      for(;;) {
+	std::vector<T> buf(N * getNChannels());
+	size_t z = wav.readPCM(buf.data(), N);
+	if (z == 0) {
+	  baq.close();
+	  break;
+	}
+	buf.resize(z * getNChannels());
+	baq.write(std::move(buf));
+      }
     }
 
-    WavReaderStage() : wav() {
+  public:
+    WavReaderStage(const std::string &filename, bool mt_) : wav(filename.c_str()), mt(mt_), baq(N * wav.getNChannels()) {
       outlet.resize(getNChannels());
       for(unsigned ch=0;ch<getNChannels();ch++)
 	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
+      if (mt) th = std::make_shared<std::thread>(&WavReaderStage::thEntry, this);
+    }
+
+    WavReaderStage(bool mt_) : wav(), mt(mt_), baq(N * wav.getNChannels()) {
+      outlet.resize(getNChannels());
+      for(unsigned ch=0;ch<getNChannels();ch++)
+	outlet[ch] = std::make_shared<WavOutlet>(*this, ch);
+      if (mt) th = std::make_shared<std::thread>(&WavReaderStage::thEntry, this);
     }
 
     dr_wav::drwav getWav() const { return wav.getWav(); }
@@ -98,7 +123,9 @@ namespace shibatch {
       return outlet[channel];
     }
 
-    ~WavReaderStage() {}
+    ~WavReaderStage() {
+      if (th) th->join();
+    }
   };
 }
 #endif // #ifndef WAVREADER_HPP
