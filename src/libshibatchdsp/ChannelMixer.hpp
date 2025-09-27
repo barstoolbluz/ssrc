@@ -5,6 +5,7 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+#include <mutex>
 
 #include "shibatch/ssrc.hpp"
 #include "ArrayQueue.hpp"
@@ -23,9 +24,13 @@ namespace shibatch {
     public:
       Outlet(ChannelMixerStage &parent_) : parent(parent_) {}
 
-      bool atEnd() { return queue.size() == 0 && parent.allInputAtEnd(); }
+      bool atEnd() {
+	std::unique_lock lock(parent.mtx);
+	return queue.size() == 0 && parent.allInputAtEnd();
+      }
 
       size_t read(T *ptr, size_t n) {
+	std::unique_lock lock(parent.mtx);
 	size_t s = queue.size();
 	if (s < n) s += parent.refill(n - s);
 	if (s > n) s = n;
@@ -41,6 +46,7 @@ namespace shibatch {
     const unsigned snch, dnch;
     std::vector<std::shared_ptr<Outlet>> out;
     std::vector<std::vector<T>> buf;
+    std::mutex mtx;
 
     size_t refill(size_t n) {
       for(unsigned c=0;c<buf.size();c++) buf[c].resize(n);
