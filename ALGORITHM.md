@@ -117,3 +117,19 @@ The filter's impulse response is partitioned into blocks of *different sizes*:
 - The **tail** of the impulse response is grouped into a **few large partitions**. These are processed less frequently, which is more computationally efficient as it requires fewer FFT operations overall.
 
 This hybrid approach allows the filter to achieve both the extremely low latency of short filters and the high frequency precision and computational efficiency of long filters. The `PartDFTFilter` class efficiently performs this complex processing by exponentially increasing the lengths of the applied filters. The underlying DFT calculations are accelerated using the `SleefDFT` library, which leverages SIMD instructions for high-speed processing.
+
+### 7. Internal Execution Framework (`BGExecutor`)
+
+To efficiently execute the conversion process, especially computationally intensive tasks like partitioned convolution, SSRC includes an internal multi-threaded execution framework. The core of this framework is the `BGExecutor` class. This system is used for parallelizing computational tasks, separate from the dedicated threads used for file I/O (reading and writing).
+
+#### 7.1. Basic Mechanism
+
+-   **Job Submission and Retrieval**: A user creates an instance of the `BGExecutor` class and `push`es jobs (implementing the `Runnable` interface) to it to request background execution. By calling `pop` on the same instance, the user can retrieve the results of the job (the completed `Runnable` object). Each `BGExecutor` instance is independent; a job `push`ed to one instance cannot be `pop`ped from another.
+-   **Global Worker Pool**: Internally, a singleton class named `BGExecutorStatic` manages all worker threads globally. Jobs `push`ed from any `BGExecutor` instance are sent to this singleton's queue and assigned to waiting worker threads.
+-   **Inter-thread Communication**: A thread-safe `BlockingQueue` class is used for passing jobs between threads.
+
+#### 7.2. Dynamic Worker Thread Management
+
+-   **Thread Spawning**: Worker threads are spawned dynamically on demand. Specifically, when a job is `push`ed, if there are no idle worker threads available (i.e., `nIdleWorkers` is 0), **one** new worker thread is created. This allows the thread pool to scale up gracefully according to the required processing power. The strategy is not to "run all available jobs in parallel at once," but rather to "add one thread when needed."
+-   **Race Conditions**: While the check and decrement of `nIdleWorkers` are atomic operations, a race condition could theoretically occur between the check and the spawning of a new thread. However, even if this race occurs, the worst-case scenario is that one extra worker thread is spawned. This does not cause the system to halt or deadlock; it only has a minor impact on performance, and system stability is maintained.
+-   **Deadlock Avoidance**: This architecture is robust against deadlocks. A typical deadlock scenario might occur in a "fork-join" situation where all worker threads are waiting for child jobs they have spawned to complete. In `BGExecutor`, if new jobs are added to the queue in such a state, the system will see that there are no idle workers and **spawn a new worker thread**. This dynamic expansion of the thread pool effectively prevents deadlocks caused by resource exhaustion. Because jobs have a parent-child relationship, circular waits do not occur, and execution completes sequentially from the most descendant jobs.
