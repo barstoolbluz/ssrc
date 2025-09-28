@@ -8,6 +8,14 @@
 using namespace std;
 using namespace dr_wav;
 
+string container_to_string(drwav_container container) {
+    if (container == drwav_container_riff) return "riff";
+    if (container == drwav_container_w64) return "w64";
+    if (container == drwav_container_rf64) return "rf64";
+    if (container == drwav_container_aiff) return "aiff";
+    return "unknown";
+}
+
 double compare(const string& file0, const string& file1) {
   static const size_t N = 4096;
 
@@ -38,7 +46,13 @@ double compare(const string& file0, const string& file1) {
 }
 
 int main(int argc, char **argv) {
-  if (argc == 4) {
+  if (argc == 4 && string(argv[1]) == "--check-channels") {
+    WavFile wav(argv[2]);
+    return wav.getNChannels() == stoul(argv[3]) ? 0 : 1;
+  } else if (argc == 4 && string(argv[1]) == "--check-container") {
+    WavFile wav(argv[2]);
+    return container_to_string(wav.getContainer()) == argv[3] ? 0 : 1;
+  } else if (argc == 4) {
     try {
       double maxDif = compare(argv[1], argv[2]);
       cerr << "Max difference : " << maxDif << endl;
@@ -48,6 +62,8 @@ int main(int argc, char **argv) {
     }
   } else {
     cerr << "Usage : " << argv[0] << " <file0.wav> <file1.wav> <threshold>" << endl;
+    cerr << " or " << argv[0] << " --check-channels <file.wav> <# of channels>" << endl;
+    cerr << " or " << argv[0] << " --check-container <file.wav> <container>" << endl;
   }
 
   return -1;
