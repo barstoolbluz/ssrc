@@ -559,7 +559,7 @@ vector<vector<double>> parseMixString(const string &s) {
     r.push_back(d);
     switch(*q) {
     case ',': break;
-    case ';':
+    case ';': case '_':
       if (nc == 0) nc = r.size();
       if (nc != r.size()) throw(runtime_error("parseMixString : inconsistent number of column"));
       ret.push_back(r);
@@ -817,7 +817,7 @@ int main(int argc, char **argv) {
       pipeline.execute();
     }
   } catch(exception &ex) {
-    cerr << "Error : " << ex.what() << endl;
+    cerr << argv[0] << " Error : " << ex.what() << endl;
     return -1;
   }
 

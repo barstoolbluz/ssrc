@@ -521,7 +521,7 @@ int main(int argc, char **argv) {
       return 0;
     }
   } catch(exception &ex) {
-    cerr << "Error : " << ex.what() << endl;
+    cerr << argv[0] << " Error : " << ex.what() << endl;
     return -1;
   }
 }
