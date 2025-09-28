@@ -1,6 +1,7 @@
 #include <vector>
 #include <cstring>
 #include <unordered_set>
+#include <atomic>
 #include "SRC.hpp"
 #include "WavReader.hpp"
 #include "WavWriter.hpp"
@@ -16,9 +17,6 @@
 #error BULIDINFO not defined
 #endif
 
-#define stringify(a) stringify_(a)
-#define stringify_(a) #a
-
 using namespace std;
 using namespace ssrc;
 using namespace shibatch;
@@ -27,22 +25,21 @@ using namespace shibatch;
 
 namespace ssrc {
   std::string versionString() { return SSRC_VERSION; }
-  std::string buildInfo() { return stringify(BUILDINFO); }
+  std::string buildInfo() { return BUILDINFO; }
 }
 
 namespace {
-  class FactoryMadeRunnable : public Runnable {
+  class LambdaRunner : public Runnable {
     const function<void(void *)> f;
     void *ptr;
   public:
-    FactoryMadeRunnable(function<void(void *)> f_, void *ptr_) : f(f_), ptr(ptr_) {}
-    ~FactoryMadeRunnable() {}
+    LambdaRunner(function<void(void *)> f_, void *ptr_) : f(f_), ptr(ptr_) {}
+    ~LambdaRunner() {}
     void run() { f(ptr); }
   };
 
   class BGExecutorStatic {
-    const unsigned nth;
-    bool initialized = false;
+    std::atomic<int> nIdleWorkers = 0;
     vector<shared_ptr<thread>> vth;
     unordered_set<class BGExecutor *> regset;
     BlockingQueue<shared_ptr<Runnable>> queue;
@@ -50,7 +47,9 @@ namespace {
 
     void thEntry() {
       for(;;) {
+	nIdleWorkers++;
 	auto r = queue.pop();
+	nIdleWorkers--;
 	if (!r) break;
 	r->run();
 	unique_lock lock(mtx);
@@ -60,11 +59,6 @@ namespace {
 
     void reg(class BGExecutor* x) {
       unique_lock lock(mtx);
-      if (!initialized) {
-	initialized = true;
-	for(unsigned i=0;i < nth;i++)
-	  vth.push_back(make_shared<thread>(&BGExecutorStatic::thEntry, this));
-      }
       regset.insert(x);
     }
 
@@ -73,14 +67,17 @@ namespace {
       regset.erase(x);
     }
 
-  public:
-    BGExecutorStatic() : nth(thread::hardware_concurrency()) {}
-
-    ~BGExecutorStatic() {
-      if (initialized) {
-	for(unsigned i=0;i < nth;i++) queue.push(nullptr);
-	for(auto t : vth) t->join();
+    void addWorkerIfNecessary() {
+      if (nIdleWorkers == 0) {
+	unique_lock lock(mtx);
+	vth.push_back(make_shared<thread>(&BGExecutorStatic::thEntry, this));
       }
+    }
+
+  public:
+    ~BGExecutorStatic() {
+      for(unsigned i=0;i < vth.size();i++) queue.push(nullptr);
+      for(auto t : vth) t->join();
     }
 
     friend class shibatch::BGExecutor;
@@ -91,13 +88,14 @@ namespace {
 
 namespace shibatch {
   shared_ptr<Runnable> Runnable::factory(function<void(void *)> f, void *p) {
-    return make_shared<FactoryMadeRunnable>(f, p);
+    return make_shared<LambdaRunner>(f, p);
   }
 
   BGExecutor::BGExecutor() { bgExecutorStatic.reg(this); }
   BGExecutor::~BGExecutor() { bgExecutorStatic.unreg(this); }
 
   void BGExecutor::push(shared_ptr<Runnable> job) {
+    bgExecutorStatic.addWorkerIfNecessary();
     job->belongsTo = this;
     bgExecutorStatic.queue.push(job);
   }

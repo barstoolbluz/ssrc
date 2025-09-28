@@ -16,9 +16,6 @@
 #define M_PI 3.1415926535897932384626433832795028842
 #endif
 
-#define stringify(a) stringify_(a)
-#define stringify_(a) #a
-
 static const size_t BUFSIZE = 1 << 20;
 
 #include "ArrayQueue.hpp"
