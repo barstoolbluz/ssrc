@@ -316,7 +316,8 @@ struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsign
     vector<shared_ptr<StageOutlet<float>>> out(num_channels);
 
     for(unsigned i=0;i<num_channels;i++) {
-      auto ssrc = make_shared<SSRC<float>>(xifier->getOutlet(i), (int64_t)input_rate, (int64_t)output_rate, q.log2dftfilterlen, q.aa, q.guard);
+      auto ssrc = make_shared<SSRC<float>>(xifier->getOutlet(i), (int64_t)input_rate, (int64_t)output_rate, q.log2dftfilterlen, q.aa, q.guard, 1.0,
+					   false, 0, rt.num_threads == 0);
       thiz->delay = ssrc->getDelay();
       out[i] = ssrc;
     }
@@ -387,7 +388,8 @@ ssrc_soxr_error_t ssrc_soxr_clear(struct ssrc_soxr *thiz) {
 
     for(unsigned i=0;i<thiz->num_channels;i++) {
       auto ssrc = make_shared<SSRC<float>>(xifier->getOutlet(i), (int64_t)thiz->input_rate, (int64_t)thiz->output_rate,
-					   thiz->qspec.log2dftfilterlen, thiz->qspec.aa, thiz->qspec.guard);
+					   thiz->qspec.log2dftfilterlen, thiz->qspec.aa, thiz->qspec.guard, 1.0,
+					   false, 0, thiz->rtspec.num_threads == 0);
       thiz->delay = ssrc->getDelay();
       out[i] = ssrc;
     }

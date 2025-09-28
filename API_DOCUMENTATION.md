@@ -290,8 +290,6 @@ This struct specifies the overall file type by defining its main **`ChunkID`**. 
 - `ContainerFormat::RIFF`: The `ChunkID` is `'RIFF'`. This is the classic WAV format, but it is limited to a maximum file size of 4 GB.
 - `ContainerFormat::W64`: Sony Wave64 format. This is one of several competing formats designed to exceed the 4GB limit using 64-bit addressing.
 - `ContainerFormat::RF64`: An extension of RIFF that is also 64-bit compatible. It is designed to be backwards-compatible with systems that don't recognize it.
-- `ContainerFormat::AIFF`: Audio Interchange File Format, used by Apple.
-- `ContainerFormat::RIFX`: A big-endian variant of RIFF.
 
 Choosing a 64-bit compatible container like `RF64` or `W64` is essential if your output file might be larger than 4 GB.
 

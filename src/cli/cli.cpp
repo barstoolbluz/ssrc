@@ -50,14 +50,10 @@ const unordered_map<string, ConversionProfile> availableProfiles = {
 const unordered_map<string, ContainerFormat> availableContainers = {
   { "riff", ContainerFormat::RIFF },
   { "RIFF", ContainerFormat::RIFF },
-  { "rifx", ContainerFormat::RIFX },
-  { "RIFX", ContainerFormat::RIFX },
   { "w64" , ContainerFormat::W64  },
   { "W64" , ContainerFormat::W64  },
   { "rf64", ContainerFormat::RF64 },
   { "RF64", ContainerFormat::RF64 },
-  { "aiff", ContainerFormat::AIFF },
-  { "AIFF", ContainerFormat::AIFF },
 };
 
 void showProfileOptions() {
@@ -89,7 +85,7 @@ void showDitherOptions() {
 }
 
 void showContainerOptions() {
-  cerr << "Available containers : riff, rifx, w64, rf64, aiff" << endl;
+  cerr << "Available containers : riff, w64, rf64" << endl;
   exit(-1);
 }
 
