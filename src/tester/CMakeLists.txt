@@ -282,3 +282,55 @@ add_test(NAME test_impulse_44100_48000_standard_minPhase COMMAND "${CMAKE_COMMAN
   -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.44100.48000.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.standard.44100.48000.minPhase.wav\;50000
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
 )
+
+add_test(NAME test_mix_channels_stereo_to_mono COMMAND "${CMAKE_COMMAND}"
+  -D "COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--mixChannels;0.5,0.5;--rate;48000;--bits;-64;${TMP_DIR_PATH}/sin10k.44100.wav;${TMP_DIR_PATH}/sin10k.44100.48000.mono.wav"
+  -D "COMMAND1_TO_EXECUTE=$<TARGET_FILE:cmpwav>;--check-channels;${TMP_DIR_PATH}/sin10k.44100.48000.mono.wav;1"
+  -D "COMMAND2_TO_EXECUTE=$<TARGET_FILE:scsa>;--check;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa;${TMP_DIR_PATH}/sin10k.44100.48000.mono.wav;100000;460000;10000"
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_mix_channels_mono_to_stereo COMMAND "${CMAKE_COMMAND}"
+  -D "COMMAND0_TO_EXECUTE=bash;-c;$<TARGET_FILE:ssrc> --profile standard --mixChannels '1;1' --rate 44100 --bits -64 ${TMP_DIR_PATH}/sin10k.mono.44100.wav ${TMP_DIR_PATH}/sin10k.mono.44100.stereo.wav"
+  -D "COMMAND1_TO_EXECUTE=$<TARGET_FILE:cmpwav>;--check-channels;${TMP_DIR_PATH}/sin10k.mono.44100.stereo.wav;2"
+  -D "COMMAND2_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--mixChannels;1,0;--rate;44100;--bits;-64;${TMP_DIR_PATH}/sin10k.mono.44100.stereo.wav;${TMP_DIR_PATH}/sin10k.mono.44100.stereo.ch0.wav"
+  -D "COMMAND3_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--mixChannels;0,1;--rate;44100;--bits;-64;${TMP_DIR_PATH}/sin10k.mono.44100.stereo.wav;${TMP_DIR_PATH}/sin10k.mono.44100.stereo.ch1.wav"
+  -D "COMMAND4_TO_EXECUTE=$<TARGET_FILE:cmpwav>;${TMP_DIR_PATH}/sin10k.mono.44100.stereo.ch0.wav;${TMP_DIR_PATH}/sin10k.mono.44100.stereo.ch1.wav;0.0001"
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_mix_channels_swap_stereo_channels COMMAND "${CMAKE_COMMAND}"
+  -D "COMMAND0_TO_EXECUTE=bash;-c;$<TARGET_FILE:ssrc> --profile standard --mixChannels '0,1;1,0' --rate 44100 --bits -64 ${TMP_DIR_PATH}/sin10k.44100.wav ${TMP_DIR_PATH}/sin10k.44100.swapped.wav"
+  -D "COMMAND1_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--mixChannels;1,0;--rate;44100;--bits;-64;${TMP_DIR_PATH}/sin10k.44100.wav;${TMP_DIR_PATH}/sin10k.44100.ch0.wav"
+  -D "COMMAND2_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--mixChannels;0,1;--rate;44100;--bits;-64;${TMP_DIR_PATH}/sin10k.44100.wav;${TMP_DIR_PATH}/sin10k.44100.ch1.wav"
+  -D "COMMAND3_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--mixChannels;1,0;--rate;44100;--bits;-64;${TMP_DIR_PATH}/sin10k.44100.swapped.wav;${TMP_DIR_PATH}/sin10k.44100.swapped.ch0.wav"
+  -D "COMMAND4_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--mixChannels;0,1;--rate;44100;--bits;-64;${TMP_DIR_PATH}/sin10k.44100.swapped.wav;${TMP_DIR_PATH}/sin10k.44100.swapped.ch1.wav"
+  -D "COMMAND5_TO_EXECUTE=$<TARGET_FILE:cmpwav>;${TMP_DIR_PATH}/sin10k.44100.ch0.wav;${TMP_DIR_PATH}/sin10k.44100.swapped.ch1.wav;0.0001"
+  -D "COMMAND6_TO_EXECUTE=$<TARGET_FILE:cmpwav>;${TMP_DIR_PATH}/sin10k.44100.ch1.wav;${TMP_DIR_PATH}/sin10k.44100.swapped.ch0.wav;0.0001"
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_mix_channels_lr_roundtrip COMMAND "${CMAKE_COMMAND}"
+  -D "COMMAND0_TO_EXECUTE=bash;-c;$<TARGET_FILE:ssrc> --profile standard --mixChannels '1,1;1,-1' --rate 44100 --bits -64 ${TMP_DIR_PATH}/sin10k.44100.wav ${TMP_DIR_PATH}/sin10k.44100.lr.wav"
+  -D "COMMAND1_TO_EXECUTE=bash;-c;$<TARGET_FILE:ssrc> --profile standard --mixChannels '0.5,0.5;0.5,-0.5' --rate 44100 --bits -64 ${TMP_DIR_PATH}/sin10k.44100.lr.wav ${TMP_DIR_PATH}/sin10k.44100.lr.restored.wav"
+  -D "COMMAND2_TO_EXECUTE=$<TARGET_FILE:cmpwav>;${TMP_DIR_PATH}/sin10k.44100.wav;${TMP_DIR_PATH}/sin10k.44100.lr.restored.wav;0.0001"
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_dstContainer_w64 COMMAND "${CMAKE_COMMAND}"
+  -D "COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--dstContainer;w64;--rate;48000;--bits;24;${TMP_DIR_PATH}/sin10k.44100.wav;${TMP_DIR_PATH}/sin10k.44100.48000.w64.wav"
+  -D "COMMAND1_TO_EXECUTE=$<TARGET_FILE:cmpwav>;--check-container;${TMP_DIR_PATH}/sin10k.44100.48000.w64.wav;w64"
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_dstContainer_rf64 COMMAND "${CMAKE_COMMAND}"
+  -D "COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>;--profile;standard;--dstContainer;rf64;--rate;48000;--bits;24;${TMP_DIR_PATH}/sin10k.44100.wav;${TMP_DIR_PATH}/sin10k.44100.48000.rf64.wav"
+  -D "COMMAND1_TO_EXECUTE=$<TARGET_FILE:cmpwav>;--check-container;${TMP_DIR_PATH}/sin10k.44100.48000.rf64.wav;rf64"
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(
+  NAME test_mix_channels_invalid_matrix
+  COMMAND $<TARGET_FILE:ssrc> --mixChannels 1,2,3 ${TMP_DIR_PATH}/sin10k.44100.wav ${TMP_DIR_PATH}/dummy.wav
+)
+set_tests_properties(test_mix_channels_invalid_matrix PROPERTIES WILL_FAIL true)
