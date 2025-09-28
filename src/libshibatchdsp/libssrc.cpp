@@ -8,11 +8,27 @@
 #include "ChannelMixer.hpp"
 #include "BGExecutor.hpp"
 
+#ifndef SSRC_VERSION
+#error SSRC_VERSION not defined
+#endif
+
+#ifndef BUILDINFO
+#error BULIDINFO not defined
+#endif
+
+#define stringify(a) stringify_(a)
+#define stringify_(a) #a
+
 using namespace std;
 using namespace ssrc;
 using namespace shibatch;
 
 //
+
+namespace ssrc {
+  std::string versionString() { return SSRC_VERSION; }
+  std::string buildInfo() { return stringify(BUILDINFO); }
+}
 
 namespace {
   class FactoryMadeRunnable : public Runnable {

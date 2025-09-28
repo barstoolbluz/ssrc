@@ -61,7 +61,7 @@ namespace dr_wav {
     friend class WavFile;
   };
 
-  ::std::ostream& operator<<(::std::ostream &os, const drwav_fmt &fmt) { return os << to_string(Format(fmt)); }
+  //::std::ostream& operator<<(::std::ostream &os, const drwav_fmt &fmt) { return os << to_string(Format(fmt)); }
 
   class Container {
     const drwav_container c;

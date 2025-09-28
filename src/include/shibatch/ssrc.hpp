@@ -170,5 +170,8 @@ namespace ssrc {
   private:
     std::shared_ptr<class ChannelMixerImpl> impl;
   };
+
+  std::string versionString();
+  std::string buildInfo();
 }
 #endif // #ifndef SHIBATCH_SSRC_HPP

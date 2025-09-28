@@ -16,16 +16,15 @@
 #define M_PI 3.1415926535897932384626433832795028842
 #endif
 
+#define stringify(a) stringify_(a)
+#define stringify_(a) #a
+
 static const size_t BUFSIZE = 1 << 20;
 
 #include "ArrayQueue.hpp"
 
 #include "shibatch/ssrc.hpp"
 #include "shibatch/shapercoefs.h"
-
-#ifndef SSRC_VERSION
-#error SSRC_VERSION not defined
-#endif
 
 using namespace std;
 using namespace ssrc;
@@ -90,7 +89,7 @@ void showContainerOptions() {
 }
 
 void showUsage(const string& argv0, const string& mes = "") {
-  cerr << ("Shibatch Sample Rate Converter  Version " SSRC_VERSION) << endl;
+  cerr << ("Shibatch Sample Rate Converter  Version " + versionString()) << endl;
   cerr << endl;
   cerr << "Usage: " << argv0 << " [<options>] <source file name> <destination file name>" << endl;
   cerr << endl;
@@ -401,6 +400,10 @@ struct Pipeline {
     int64_t timeBeforeInit = 0, timeBeforeExec = 0;
 
     if (debug) {
+      cerr << "Version = " << versionString() << endl;
+      cerr << "Build info = " << buildInfo() << endl;
+      cerr << endl;
+
       cerr << "srcfn = "        << srcfn << endl;
       cerr << "sfs = "          << sfs << endl;
       cerr << "snch = "         << snch << endl;

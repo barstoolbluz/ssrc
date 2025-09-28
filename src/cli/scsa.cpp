@@ -12,11 +12,8 @@
 #include <sleef.h>
 #include <sleefdft.h>
 
+#include "shibatch/ssrc.hpp"
 #include "dr_wav.hpp"
-
-#ifndef SSRC_VERSION
-#error SSRC_VERSION not defined
-#endif
 
 #ifndef M_PI
 #define M_PI 3.1415926535897932384626433832795028842
@@ -33,9 +30,11 @@ namespace {
     SpectrumCheckItem(double lf_, double hf_, bool greater_, double thres_) :
       lf(lf_), hf(hf_), greater(greater_), thres(thres_) {}
 
+#if 0
     friend ostream& operator<<(ostream& os, const SpectrumCheckItem& si) {
       return os << "[" << si.lf << "Hz ... " << si.hf << "Hz " << (si.greater ? '>' : '<') << " " << si.thres << "dB]";
     }
+#endif
   };
 
   //
@@ -191,7 +190,6 @@ namespace {
   class SpectrumDisplay {
     const double width, height, topMargin = 30, bottomMargin = 40, leftMargin = 60, rightMargin = 20;
     const double rangekHz, rangedB, intervalX, intervalY, gw, gh;
-    const bool logFreq;
     SVGCanvas c;
 
   public:
@@ -199,7 +197,7 @@ namespace {
 		    double intervalX_, double intervalY_, bool logFreq_) :
       width(width_), height(height_), rangekHz(rangekHz_), rangedB(rangedB_),
       intervalX(intervalX_), intervalY(intervalY_), gw(width - leftMargin - rightMargin), gh(height - topMargin - bottomMargin),
-      logFreq(logFreq_),c(os_, width_, height_) {
+      c(os_, width_, height_) {
 
       c.drawRect(0, 0, width, height, StrokeStyle(Color(0,0,0),1));
 
@@ -351,7 +349,7 @@ namespace {
 using namespace dr_wav;
 
 void showUsage(const string& argv0, const string& mes = "") {
-  cerr << ("Shibatch command-line spectrum analyzer (accompanying SSRC Version " SSRC_VERSION ")") << endl;
+  cerr << "Shibatch command-line spectrum analyzer (accompanying SSRC Version " << ssrc::versionString() << ")" << endl;
   cerr << endl;
   cerr << "usage: " << argv0 << " [<options>] <source file name> <first position> <last position> <interval>" << endl;
   cerr << endl;
