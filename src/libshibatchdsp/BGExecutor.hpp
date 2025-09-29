@@ -1,14 +1,13 @@
 #ifndef BGEXECUTOR_HPP
 #define BGEXECUTOR_HPP
 
+#include <queue>
 #include <functional>
-
-#include "BlockingQueue.hpp"
 
 namespace shibatch {
   class Runnable {
-  public:
     class BGExecutor* belongsTo = nullptr;
+  public:
     virtual void run() = 0;
     virtual ~Runnable() {}
 
@@ -19,12 +18,12 @@ namespace shibatch {
   };
 
   class BGExecutor {
+    std::queue<std::shared_ptr<Runnable>> que;
   public:
-    BlockingQueue<std::shared_ptr<Runnable>> queue;
-    BGExecutor();
-    ~BGExecutor();
     void push(std::shared_ptr<Runnable> job);
     std::shared_ptr<Runnable> pop();
+
+    friend class BGExecutorStatic;
   };
 }
 #endif // #ifndef BGEXECUTOR_HPP

@@ -1,7 +1,7 @@
 #include <vector>
 #include <cstring>
 #include <unordered_set>
-#include <atomic>
+#include <queue>
 #include "SRC.hpp"
 #include "WavReader.hpp"
 #include "WavWriter.hpp"
@@ -24,11 +24,11 @@ using namespace shibatch;
 //
 
 namespace ssrc {
-  std::string versionString() { return SSRC_VERSION; }
-  std::string buildInfo() { return BUILDINFO; }
+  string versionString() { return SSRC_VERSION; }
+  string buildInfo() { return BUILDINFO; }
 }
 
-namespace {
+namespace shibatch {
   class LambdaRunner : public Runnable {
     const function<void(void *)> f;
     void *ptr;
@@ -39,44 +39,57 @@ namespace {
   };
 
   class BGExecutorStatic {
-    std::atomic<int> nIdleWorkers = 0;
+    int nIdleWorkers = 0;
     vector<shared_ptr<thread>> vth;
-    unordered_set<class BGExecutor *> regset;
-    BlockingQueue<shared_ptr<Runnable>> queue;
+    unordered_set<thread::id> thIds;
+    queue<shared_ptr<Runnable>> que;
     mutex mtx;
+    condition_variable condVar;
+
+    shared_ptr<Runnable> pop() {
+      auto ret = std::move(que.front());
+      que.pop();
+      return ret;
+    }
 
     void thEntry() {
-      for(;;) {
-	nIdleWorkers++;
-	auto r = queue.pop();
-	nIdleWorkers--;
-	if (!r) break;
-	r->run();
+      {
 	unique_lock lock(mtx);
-	if (regset.count(r->belongsTo)) r->belongsTo->queue.push(r);
+	thIds.insert(this_thread::get_id());
       }
-    }
 
-    void reg(class BGExecutor* x) {
-      unique_lock lock(mtx);
-      regset.insert(x);
-    }
+      shared_ptr<Runnable> r = nullptr;
 
-    void unreg(class BGExecutor* x) {
-      unique_lock lock(mtx);
-      regset.erase(x);
+      for(;;) {
+	if (r) r->run();
+
+	unique_lock lock(mtx);
+
+	if (r) {
+	  r->belongsTo->que.push(r);
+	  condVar.notify_all();
+	}
+
+	nIdleWorkers++;
+	while(que.empty()) condVar.wait(lock);
+	nIdleWorkers--;
+	r = pop();
+	if (!r) break;
+      }
     }
 
     void addWorkerIfNecessary() {
-      if (nIdleWorkers == 0) {
-	unique_lock lock(mtx);
+      if (nIdleWorkers == 0 && vth.size() < thread::hardware_concurrency())
 	vth.push_back(make_shared<thread>(&BGExecutorStatic::thEntry, this));
-      }
     }
 
   public:
     ~BGExecutorStatic() {
-      for(unsigned i=0;i < vth.size();i++) queue.push(nullptr);
+      {
+	unique_lock lock(mtx);
+	for(unsigned i=0;i < vth.size();i++) que.push(nullptr);
+	condVar.notify_all();
+      }
       for(auto t : vth) t->join();
     }
 
@@ -84,23 +97,53 @@ namespace {
   };
 
   BGExecutorStatic bgExecutorStatic;
-}
 
-namespace shibatch {
   shared_ptr<Runnable> Runnable::factory(function<void(void *)> f, void *p) {
     return make_shared<LambdaRunner>(f, p);
   }
 
-  BGExecutor::BGExecutor() { bgExecutorStatic.reg(this); }
-  BGExecutor::~BGExecutor() { bgExecutorStatic.unreg(this); }
-
   void BGExecutor::push(shared_ptr<Runnable> job) {
-    bgExecutorStatic.addWorkerIfNecessary();
     job->belongsTo = this;
-    bgExecutorStatic.queue.push(job);
+    unique_lock lock(bgExecutorStatic.mtx);
+    bgExecutorStatic.addWorkerIfNecessary();
+    bgExecutorStatic.que.push(job);
+    bgExecutorStatic.condVar.notify_all();
   }
 
-  shared_ptr<Runnable> BGExecutor::pop() { return queue.pop(); }
+  shared_ptr<Runnable> BGExecutor::pop() {
+    if (bgExecutorStatic.thIds.count(this_thread::get_id()) == 0) {
+      unique_lock lock(bgExecutorStatic.mtx);
+
+      while(que.empty()) bgExecutorStatic.condVar.wait(lock);
+
+      auto r = std::move(que.front());
+      que.pop();
+
+      return r;
+    }
+
+    for(;;) {
+      shared_ptr<Runnable> r = nullptr;
+
+      {
+	unique_lock lock(bgExecutorStatic.mtx);
+
+	bgExecutorStatic.nIdleWorkers++;
+	while(que.empty() && bgExecutorStatic.que.empty()) bgExecutorStatic.condVar.wait(lock);
+	bgExecutorStatic.nIdleWorkers--;
+
+	if (!que.empty()) {
+	  auto ret = std::move(que.front());
+	  que.pop();
+	  return ret;
+	}
+
+	r = bgExecutorStatic.pop();
+      }
+
+      r->run();
+    }
+  }
 }
 
 //
@@ -140,7 +183,7 @@ template double SSRC<double>::getDelay();
 
 //
 
-template<typename T> WavReader<T>::WavReader(const std::string &filename, bool mt_) :
+template<typename T> WavReader<T>::WavReader(const string &filename, bool mt_) :
   impl(make_shared<WavReaderStage<T>>(filename, mt_)) {}
 
 template<typename T> WavReader<T>::WavReader(bool mt_) :
@@ -148,7 +191,7 @@ template<typename T> WavReader<T>::WavReader(bool mt_) :
 
 template<typename T> WavReader<T>::~WavReader() {}
 
-template<typename T> std::shared_ptr<StageOutlet<T>> WavReader<T>::getOutlet(uint32_t channel) {
+template<typename T> shared_ptr<StageOutlet<T>> WavReader<T>::getOutlet(uint32_t channel) {
   return dynamic_pointer_cast<WavReaderStage<T>>(impl)->getOutlet(channel);
 }
 
@@ -176,14 +219,14 @@ template<typename T> ContainerFormat WavReader<T>::getContainer() {
 
 //
 
-template WavReader<float>::WavReader(const std::string &filename, bool mt_);
+template WavReader<float>::WavReader(const string &filename, bool mt_);
 template WavReader<float>::WavReader(bool mt_);
 template WavReader<float>::~WavReader();
 template shared_ptr<StageOutlet<float>> WavReader<float>::getOutlet(uint32_t);
 template WavFormat WavReader<float>::getFormat();
 template ContainerFormat WavReader<float>::getContainer();
 
-template WavReader<double>::WavReader(const std::string &filename, bool mt_);
+template WavReader<double>::WavReader(const string &filename, bool mt_);
 template WavReader<double>::WavReader(bool mt_);
 template WavReader<double>::~WavReader();
 template shared_ptr<StageOutlet<double>> WavReader<double>::getOutlet(uint32_t);
@@ -192,9 +235,9 @@ template ContainerFormat WavReader<double>::getContainer();
 
 //
 
-template<typename T> WavWriter<T>::WavWriter(const std::string &filename,
+template<typename T> WavWriter<T>::WavWriter(const string &filename,
 					     const ssrc::WavFormat& fmt_, const ssrc::ContainerFormat& cont_,
-					     const std::vector<std::shared_ptr<StageOutlet<T>>> &in_,
+					     const vector<shared_ptr<StageOutlet<T>>> &in_,
 					     uint64_t nFrames, size_t bufsize_, bool mt_) {
   dr_wav::drwav_fmt fmt;
   memcpy(&fmt, &fmt_, sizeof(fmt));
@@ -209,27 +252,27 @@ template<typename T> void WavWriter<T>::execute() {
 
 //
 
-template WavWriter<int32_t>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				       const std::vector<std::shared_ptr<StageOutlet<int32_t>>> &, uint64_t, size_t, bool);
+template WavWriter<int32_t>::WavWriter(const string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
+				       const vector<shared_ptr<StageOutlet<int32_t>>> &, uint64_t, size_t, bool);
 template WavWriter<int32_t>::~WavWriter();
 template void WavWriter<int32_t>::execute();
 
-template WavWriter<float>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				     const std::vector<std::shared_ptr<StageOutlet<float>>> &, uint64_t, size_t, bool);
+template WavWriter<float>::WavWriter(const string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
+				     const vector<shared_ptr<StageOutlet<float>>> &, uint64_t, size_t, bool);
 template WavWriter<float>::~WavWriter();
 template void WavWriter<float>::execute();
 
-template WavWriter<double>::WavWriter(const std::string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
-				      const std::vector<std::shared_ptr<StageOutlet<double>>> &, uint64_t, size_t, bool);
+template WavWriter<double>::WavWriter(const string &, const ssrc::WavFormat&, const ssrc::ContainerFormat&,
+				      const vector<shared_ptr<StageOutlet<double>>> &, uint64_t, size_t, bool);
 template WavWriter<double>::~WavWriter();
 template void WavWriter<double>::execute();
 
 //
 
 template<typename OUTTYPE, typename INTYPE>
-Dither<OUTTYPE, INTYPE>::Dither(std::shared_ptr<StageOutlet<INTYPE>> in_, double gain_, int32_t offset_,
+Dither<OUTTYPE, INTYPE>::Dither(shared_ptr<StageOutlet<INTYPE>> in_, double gain_, int32_t offset_,
 				int32_t clipMin_, int32_t clipMax_,
-				const ssrc::NoiseShaperCoef *coef_, std::shared_ptr<DoubleRNG> rng_) :
+				const ssrc::NoiseShaperCoef *coef_, shared_ptr<DoubleRNG> rng_) :
   impl(make_shared<DitherStage<OUTTYPE, INTYPE>>(in_, gain_, offset_, clipMin_, clipMax_, coef_, rng_)) {}
 
 template<typename OUTTYPE, typename INTYPE> Dither<OUTTYPE, INTYPE>::~Dither() {}
@@ -244,35 +287,35 @@ template<typename OUTTYPE, typename INTYPE> size_t Dither<OUTTYPE, INTYPE>::read
 
 //
 
-template Dither<int32_t, float>::Dither(std::shared_ptr<StageOutlet<float>> in_, double gain_, int32_t offset_,
+template Dither<int32_t, float>::Dither(shared_ptr<StageOutlet<float>> in_, double gain_, int32_t offset_,
 					int32_t clipMin_, int32_t clipMax_,
-					const ssrc::NoiseShaperCoef *coef_, std::shared_ptr<DoubleRNG> rng_);
+					const ssrc::NoiseShaperCoef *coef_, shared_ptr<DoubleRNG> rng_);
 template Dither<int32_t, float>::~Dither();
 template size_t Dither<int32_t, float>::read(int32_t *ptr, size_t n);
 template bool Dither<int32_t, float>::atEnd();
 
-template Dither<int32_t, double>::Dither(std::shared_ptr<StageOutlet<double>> in_, double gain_, int32_t offset_,
+template Dither<int32_t, double>::Dither(shared_ptr<StageOutlet<double>> in_, double gain_, int32_t offset_,
 					 int32_t clipMin_, int32_t clipMax_,
-					 const ssrc::NoiseShaperCoef *coef_, std::shared_ptr<DoubleRNG> rng_);
+					 const ssrc::NoiseShaperCoef *coef_, shared_ptr<DoubleRNG> rng_);
 template Dither<int32_t, double>::~Dither();
 template size_t Dither<int32_t, double>::read(int32_t *ptr, size_t n);
 template bool Dither<int32_t, double>::atEnd();
 
 //
 
-std::shared_ptr<DoubleRNG> ssrc::createTriangularRNG(double peak, uint64_t seed) {
+shared_ptr<DoubleRNG> ssrc::createTriangularRNG(double peak, uint64_t seed) {
   return make_shared<TriangularDoubleRNG>(peak, make_shared<LCG64>(seed));
 }
 
 //
 
-template<typename REAL> ChannelMixer<REAL>::ChannelMixer(std::shared_ptr<ssrc::OutletProvider<REAL>> in_,
-							 const std::vector<std::vector<double>>& matrix_) :
+template<typename REAL> ChannelMixer<REAL>::ChannelMixer(shared_ptr<ssrc::OutletProvider<REAL>> in_,
+							 const vector<vector<double>>& matrix_) :
   impl(make_shared<ChannelMixerStage<REAL>>(in_, matrix_)) {}
 
 template<typename REAL> ChannelMixer<REAL>::~ChannelMixer() {}
 
-template<typename REAL> std::shared_ptr<ssrc::StageOutlet<REAL>> ChannelMixer<REAL>::getOutlet(uint32_t c) {
+template<typename REAL> shared_ptr<ssrc::StageOutlet<REAL>> ChannelMixer<REAL>::getOutlet(uint32_t c) {
   return dynamic_pointer_cast<ChannelMixerStage<REAL>>(impl)->getOutlet(c);
 }
 
@@ -282,14 +325,14 @@ template<typename REAL> WavFormat ChannelMixer<REAL>::getFormat() {
 
 //
 
-template ChannelMixer<float>::ChannelMixer(std::shared_ptr<ssrc::OutletProvider<float>> in_,
-					   const std::vector<std::vector<double>>& matrix_);
+template ChannelMixer<float>::ChannelMixer(shared_ptr<ssrc::OutletProvider<float>> in_,
+					   const vector<vector<double>>& matrix_);
 template ChannelMixer<float>::~ChannelMixer();
-template std::shared_ptr<ssrc::StageOutlet<float>> ChannelMixer<float>::getOutlet(uint32_t c);
+template shared_ptr<ssrc::StageOutlet<float>> ChannelMixer<float>::getOutlet(uint32_t c);
 template WavFormat ChannelMixer<float>::getFormat();
 
-template ChannelMixer<double>::ChannelMixer(std::shared_ptr<ssrc::OutletProvider<double>> in_,
-					   const std::vector<std::vector<double>>& matrix_);
+template ChannelMixer<double>::ChannelMixer(shared_ptr<ssrc::OutletProvider<double>> in_,
+					   const vector<vector<double>>& matrix_);
 template ChannelMixer<double>::~ChannelMixer();
-template std::shared_ptr<ssrc::StageOutlet<double>> ChannelMixer<double>::getOutlet(uint32_t c);
+template shared_ptr<ssrc::StageOutlet<double>> ChannelMixer<double>::getOutlet(uint32_t c);
 template WavFormat ChannelMixer<double>::getFormat();

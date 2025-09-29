@@ -9,6 +9,7 @@
 #include "shibatch/ssrc.hpp"
 #include "dr_wav.hpp"
 #include "BGExecutor.hpp"
+#include "BlockingQueue.hpp"
 
 template<typename T> class ssrc::WavWriter<T>::WavWriterImpl {
 public:
