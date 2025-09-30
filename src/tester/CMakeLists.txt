@@ -203,7 +203,25 @@ endforeach()
 
 add_test(NAME test_sin10k_96000_44100_standard COMMAND "${CMAKE_COMMAND}"
   -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.96000.wav\;${TMP_DIR_PATH}/sin10k.96000.44100.standard.wav
-  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-100dB-96k-44k1.scsa\;${TMP_DIR_PATH}/sin10k.96000.44100.standard.wav\;100000\;420000\;10000
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.96000.44100.standard.wav\;100000\;420000\;10000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_sin10k_96000_48000_standard COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.96000.wav\;${TMP_DIR_PATH}/sin10k.96000.48000.standard.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.96000.48000.standard.wav\;100000\;420000\;10000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_sin10k_44100_96000_standard COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;96000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.96000.standard.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--log2dftlen\;14\;--svgout\;${TMP_DIR_PATH}/error.svg\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.96000.standard.wav\;100000\;840000\;10000
+  -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+)
+
+add_test(NAME test_sin10k_48000_96000_standard COMMAND "${CMAKE_COMMAND}"
+  -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;standard\;--rate\;96000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.96000.standard.wav
+  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--log2dftlen\;14\;--svgout\;${TMP_DIR_PATH}/error.svg\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.96000.standard.wav\;100000\;840000\;10000
   -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
 )
 
@@ -318,3 +336,9 @@ add_test(
   COMMAND $<TARGET_FILE:ssrc> --mixChannels 1,2,3 ${TMP_DIR_PATH}/sin10k.44100.wav ${TMP_DIR_PATH}/dummy.wav
 )
 set_tests_properties(test_mix_channels_invalid_matrix PROPERTIES WILL_FAIL true)
+
+add_test(
+  NAME test_invalid_param_partconv
+  COMMAND $<TARGET_FILE:ssrc> --partConv 20 ${TMP_DIR_PATH}/sin10k.44100.wav ${TMP_DIR_PATH}/dummy.wav
+)
+set_tests_properties(test_invalid_param_partconv PROPERTIES WILL_FAIL true)

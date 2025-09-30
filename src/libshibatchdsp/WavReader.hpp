@@ -125,6 +125,7 @@ namespace shibatch {
     }
 
     ~WavReaderStage() {
+      baq.close();
       if (th) th->join();
     }
   };

@@ -25,6 +25,7 @@ namespace shibatch {
     const bool mt;
     std::shared_ptr<BGExecutor> bgExecutor;
     BlockingQueue<std::vector<T>> queue;
+    std::shared_ptr<std::thread> th;
 
     void thEntry() {
       const unsigned nch = wav.getNChannels();
@@ -44,6 +45,14 @@ namespace shibatch {
       if (mt) bgExecutor = std::make_shared<BGExecutor>();
     }
 
+    ~WavWriterStage() {
+      if (th) {
+	queue.push(std::vector<T>(0));
+	th->join();
+	th = nullptr;
+      }
+    }
+
     void execute() {
       const unsigned nch = wav.getNChannels();
 
@@ -61,7 +70,7 @@ namespace shibatch {
 	  wav.writePCM(fbuf.data(), zmax);
 	}
       } else {
-	std::thread th(&WavWriterStage::thEntry, this);
+	th = std::make_shared<std::thread>(&WavWriterStage::thEntry, this);
 	std::vector<T> fbuf(N * nch);
 	std::vector<std::vector<size_t>> vz(2);
 
@@ -101,9 +110,6 @@ namespace shibatch {
 	}
 
 	for(unsigned c=0;c<nch;c++) bgExecutor->pop();
-
-	queue.push(std::vector<T>(0));
-	th.join();
       }
     }
   };
