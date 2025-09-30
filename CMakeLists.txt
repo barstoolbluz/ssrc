@@ -45,7 +45,7 @@ if (NOT EXISTS ${CMAKE_BINARY_DIR}/CMakeCache.txt)
   endif()
 endif()
 
-string(TIMESTAMP BUILDDATE "%Y-%m-%dT%H:%M:%SZ")
+string(TIMESTAMP BUILDDATE "%Y-%m-%dT%H:%M:%SZ" UTC)
 add_compile_definitions(BUILDINFO="${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} ${BUILDDATE} ${CMAKE_BUILD_TYPE}")
 
 include(GNUInstallDirs)
