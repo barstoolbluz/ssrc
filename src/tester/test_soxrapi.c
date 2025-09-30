@@ -26,13 +26,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  double const out_rate = atof(argv[1]);
+  double out_rate = atof(argv[1]);
   const char* out_filename = argv[2];
+  int minPhase = out_rate < 0;
 
-  if (out_rate <= 0) {
-    fprintf(stderr, "Error: Invalid output sample rate '%.1f'.\n", out_rate);
-    return 1;
-  }
+  if (out_rate <= 0) out_rate = -out_rate;
 
   drwav first_wav_in;
   if (!drwav_init_file(&first_wav_in, argv[3], NULL)) {
@@ -50,7 +48,7 @@ int main(int argc, char *argv[]) {
 
   soxr_error_t error;
   soxr_io_spec_t io_spec = soxr_io_spec(SOXR_FLOAT32_I, SOXR_FLOAT32_I);
-  soxr_quality_spec_t q_spec = soxr_quality_spec(SOXR_MQ, 0);
+  soxr_quality_spec_t q_spec = soxr_quality_spec(SOXR_MQ, minPhase ? SOXR_MINIMUM_PHASE : 0);
   soxr_t soxr = soxr_create(current_in_rate, out_rate, num_channels, &error, &io_spec, &q_spec, NULL);
   if (!soxr) {
     fprintf(stderr, "soxr_create failed: %s\n", soxr_strerror(error));

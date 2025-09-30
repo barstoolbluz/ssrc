@@ -253,6 +253,7 @@ ssrc_soxr_io_spec_t ssrc_soxr_io_spec(ssrc_soxr_datatype_t itype, ssrc_soxr_data
 
 ssrc_soxr_quality_spec_t ssrc_soxr_quality_spec(unsigned long recipe, unsigned long flags) {
   ssrc_soxr_quality_spec_t ret;
+  ret.flags = flags;
   switch(recipe) {
   case SSRC_SOXR_QQ:  ret.log2dftfilterlen = 10; ret.aa =  96; ret.guard = 1; ret.dataType = SSRC_SOXR_FLOAT32; break;
   case SSRC_SOXR_LQ:  ret.log2dftfilterlen = 12; ret.aa =  96; ret.guard = 1; ret.dataType = SSRC_SOXR_FLOAT32; break;
@@ -299,7 +300,7 @@ struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsign
     thiz->num_channels = num_channels;
     thiz->iospec = *iospec;
 
-    ssrc_soxr_quality_spec_t q = { 14, 145, 2, SSRC_SOXR_FLOAT32 };
+    ssrc_soxr_quality_spec_t q = { 14, 145, 2, SSRC_SOXR_FLOAT32, 0 };
     if (qspec) q = *qspec;
     thiz->qspec = q;
 
@@ -317,7 +318,7 @@ struct ssrc_soxr *ssrc_soxr_create(double input_rate, double output_rate, unsign
 
     for(unsigned i=0;i<num_channels;i++) {
       auto ssrc = make_shared<SSRC<float>>(xifier->getOutlet(i), (int64_t)input_rate, (int64_t)output_rate, q.log2dftfilterlen, q.aa, q.guard, 1.0,
-					   false, 0, rt.num_threads == 0);
+					   (q.flags & SSRC_SOXR_MINIMUM_PHASE) == SSRC_SOXR_MINIMUM_PHASE, 0, rt.num_threads == 0);
       thiz->delay = ssrc->getDelay();
       out[i] = ssrc;
     }

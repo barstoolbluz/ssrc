@@ -42,6 +42,7 @@ struct ssrc_soxr_quality_spec {
   unsigned log2dftfilterlen;
   double aa, guard;
   ssrc_soxr_datatype_t dataType;
+  unsigned long flags;
 };
 
 ssrc_soxr_quality_spec_t ssrc_soxr_quality_spec(
@@ -53,6 +54,8 @@ ssrc_soxr_quality_spec_t ssrc_soxr_quality_spec(
 #define SSRC_SOXR_MQ 2
 #define SSRC_SOXR_HQ 4
 #define SSRC_SOXR_VHQ 6
+
+#define SSRC_SOXR_MINIMUM_PHASE      0x30
 
 // runtime_spec
 
@@ -148,6 +151,8 @@ static inline double soxr_delay(struct ssrc_soxr *thiz) { return ssrc_soxr_delay
 #define SOXR_MQ SSRC_SOXR_MQ
 #define SOXR_HQ SSRC_SOXR_HQ
 #define SOXR_VHQ SSRC_SOXR_VHQ
+
+#define SOXR_MINIMUM_PHASE SSRC_SOXR_MINIMUM_PHASE
 
 #define soxr_strerror(e) ((e)?(e):"no error")
 
