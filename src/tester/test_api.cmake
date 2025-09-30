@@ -47,7 +47,7 @@ else()
     COMMAND_ECHO STDOUT
   )
   execute_process(
-    COMMAND "${TARGET_FILE_ssrc}" --rate 44100 --bits -32 "${TMP_DIR_PATH}/noise.48000.wav" "${TMP_DIR_PATH}/noise.ssrc.48000.44100.-32.wav"
+    COMMAND "${TARGET_FILE_ssrc}" --rate 44100 --bits -32 --minPhase "${TMP_DIR_PATH}/noise.48000.wav" "${TMP_DIR_PATH}/noise.ssrc.48000.44100.-32.minPhase.wav"
     COMMAND_ERROR_IS_FATAL ANY
     COMMAND_ECHO STDOUT
   )
