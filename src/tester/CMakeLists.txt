@@ -21,6 +21,8 @@ add_custom_command(
   COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 48000 2 100000 0 0 --rate 48000 --bits 16 "${TMP_DIR_PATH}/noise.48000.wav"
   COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 44100 2 3000000 0 0 --rate 44100 --bits 16 "${TMP_DIR_PATH}/longnoise.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 48000 2 3000000 0 0 --rate 48000 --bits 16 "${TMP_DIR_PATH}/longnoise.48000.wav"
+  COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 44100 32 100000 0 0 --rate 44100 --bits 16 "${TMP_DIR_PATH}/noise.32ch.44100.wav"
+  COMMAND $<TARGET_FILE:ssrc> --dither 99 --pdf 0 10000 --genSweep 48000 32 100000 0 0 --rate 48000 --bits 16 "${TMP_DIR_PATH}/noise.32ch.48000.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 44100 2 441000 10000 10000 --rate 44100 --bits -64 "${TMP_DIR_PATH}/sin10k.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 44100 2 441000 12000 12000 --rate 44100 --bits -64 "${TMP_DIR_PATH}/sin12k.44100.wav"
   COMMAND $<TARGET_FILE:ssrc> --genSweep 48000 2 480000 10000 10000 --rate 48000 --bits -64 "${TMP_DIR_PATH}/sin10k.48000.wav"
@@ -182,6 +184,20 @@ foreach(PROFILE lightning fast short)
     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/longnoise.48000.wav\;${TMP_DIR_PATH}/longnoise.48000.44100.${PROFILE}.wav
     -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/longnoise.48000.wav\;${TMP_DIR_PATH}/longnoise.48000.44100.${PROFILE}.partConv.wav
     -D COMMAND2_TO_EXECUTE=$<TARGET_FILE:cmpwav>\;${TMP_DIR_PATH}/longnoise.48000.44100.${PROFILE}.wav\;${TMP_DIR_PATH}/longnoise.48000.44100.${PROFILE}.partConv.wav\;0.0001
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+  )
+
+  add_test(NAME test_noise32ch_44100_48000_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/noise.32ch.44100.wav\;${TMP_DIR_PATH}/noise.32ch.44100.48000.${PROFILE}.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/noise.32ch.44100.wav\;${TMP_DIR_PATH}/noise.32ch.44100.48000.${PROFILE}.partConv.wav
+    -D COMMAND2_TO_EXECUTE=$<TARGET_FILE:cmpwav>\;${TMP_DIR_PATH}/noise.32ch.44100.48000.${PROFILE}.wav\;${TMP_DIR_PATH}/noise.32ch.44100.48000.${PROFILE}.partConv.wav\;0.0001
+    -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+  )
+
+  add_test(NAME test_noise32ch_48000_44100_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+    -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/noise.32ch.48000.wav\;${TMP_DIR_PATH}/noise.32ch.48000.44100.${PROFILE}.wav
+    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/noise.32ch.48000.wav\;${TMP_DIR_PATH}/noise.32ch.48000.44100.${PROFILE}.partConv.wav
+    -D COMMAND2_TO_EXECUTE=$<TARGET_FILE:cmpwav>\;${TMP_DIR_PATH}/noise.32ch.48000.44100.${PROFILE}.wav\;${TMP_DIR_PATH}/noise.32ch.48000.44100.${PROFILE}.partConv.wav\;0.0001
     -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
   )
 endforeach()

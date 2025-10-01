@@ -286,7 +286,7 @@ struct Pipeline {
   uint64_t seed;
   double att, peak;
   bool minPhase, quiet, debug, mt;
-  unsigned l2mindftflen;
+  int l2mindftflen;
 
   enum SrcType src;
   enum DstType dst;
@@ -301,7 +301,7 @@ struct Pipeline {
 	   const string &profileName_, const string &dstContainerName_, uint64_t dstChannelMask_,
 	   int64_t rate_, int64_t bits_, int64_t dither_, int64_t pdf_, const vector<vector<double>>& mixMatrix_,
 	   uint64_t seed_, double att_, double peak_, bool minPhase_, bool quiet_, bool debug_, bool mt_,
-	   unsigned l2mindftflen_,
+	   int l2mindftflen_,
 	   enum SrcType src_, enum DstType dst_, size_t impulsePeriod_, size_t sweepLength_,
 	   double sweepStart_, double sweepEnd_, int generatorNch_, int generatorFs_, ConversionProfile profile_) :
     argv0(argv0_), srcfn(srcfn_), dstfn(dstfn_),
@@ -392,6 +392,8 @@ struct Pipeline {
     if (dither != -1 && shaperid == -1)
       showUsage(argv0, "Dither type " + to_string(dither) + " is not available for destination sampling frequency " + to_string(dfs) + "Hz");
 
+    if (l2mindftflen < 0) l2mindftflen += profile.log2dftfilterlen + 1;
+
     //
 
     int64_t timeBeforeInit = 0, timeBeforeExec = 0;
@@ -435,7 +437,6 @@ struct Pipeline {
       }
 
       cerr << "profileName = "  << profileName << endl;
-      cerr << "mt = "           << mt << endl;
       cerr << "dftfilterlen = " << (1LL << profile.log2dftfilterlen) << endl;
       cerr << "doublePrec = "   << profile.doublePrecision << endl;
       cerr << "aa = "           << profile.aa << endl;
@@ -452,17 +453,20 @@ struct Pipeline {
       cerr << endl;
 
       cerr << "att = "          << att << endl;
+      cerr << "seed = "         << seed << endl;
+      cerr << "quiet = "        << quiet << endl;
       cerr << "minPhase = "     << minPhase << endl;
       cerr << "l2mindftflen = " << l2mindftflen << endl;
-      cerr << "quiet = "        << quiet << endl;
-      cerr << "seed = "         << seed << endl;
+      cerr << "mt = "           << mt << endl;
       cerr << endl;
 
-      cerr << "generatorFs = "  << generatorFs << endl;
-      cerr << "impulsePeriod = " << impulsePeriod << endl;
-      cerr << "sweepLength = "  << sweepLength << endl;
-      cerr << "sweepStart = "   << sweepStart << endl;
-      cerr << "sweepEnd = "     << sweepStart << endl;
+      if (src == IMPULSE || src == SWEEP) {
+	cerr << "generatorFs = "  << generatorFs << endl;
+	cerr << "impulsePeriod = " << impulsePeriod << endl;
+	cerr << "sweepLength = "  << sweepLength << endl;
+	cerr << "sweepStart = "   << sweepStart << endl;
+	cerr << "sweepEnd = "     << sweepStart << endl;
+      }
 
       timeBeforeInit = timeus();
     }
@@ -582,7 +586,7 @@ int main(int argc, char **argv) {
   bool minPhase = false;
   vector<vector<double>> mixMatrix;
   bool mt = true, quiet = false, debug = false;
-  unsigned l2mindftflen = 0;
+  int l2mindftflen = 0;
 
   enum SrcType src = FILEIN;
   enum DstType dst = FILEOUT;
@@ -715,9 +719,9 @@ int main(int argc, char **argv) {
     } else if (string(argv[nextArg]) == "--partConv") {
       if (nextArg+1 >= argc) showUsage(argv[0]);
       char *p;
-      l2mindftflen = strtoul(argv[nextArg+1], &p, 0);
-      if (p == argv[nextArg+1] || *p || l2mindftflen == 0)
-	showUsage(argv[0], "A positive value is expected after --partConv.");
+      l2mindftflen = strtol(argv[nextArg+1], &p, 0);
+      if (p == argv[nextArg+1] || *p)
+	showUsage(argv[0], "An integer is expected after --partConv.");
       nextArg++;
     } else if (string(argv[nextArg]) == "--seed") {
       if (nextArg+1 >= argc) showUsage(argv[0]);
