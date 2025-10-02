@@ -201,7 +201,7 @@ namespace shibatch {
 	if (minPhase) {
 	  Minrceps minrceps(dftfv->size() * 8);
 
-	  keyPP = "Minrceps " + keyPP;
+	  keyPP = "Minrceps(" + std::to_string(dftfv->size() * 8) + ") " + keyPP;
 
 	  if (ssrc::ObjectCache<std::vector<REAL>>::count(keyPP) == 0) {
 	    ppfv = minrceps.execute(ppfv);
@@ -210,7 +210,7 @@ namespace shibatch {
 	    ppfv = ssrc::ObjectCache<std::vector<REAL>>::at(keyPP);
 	  }
 
-	  keyDF = "Minrceps " + keyDF;
+	  keyDF = "Minrceps(" + std::to_string(dftfv->size() * 8) + ") " + keyDF;
 
 	  if (ssrc::ObjectCache<std::vector<REAL>>::count(keyDF) == 0) {
 	    dftfv = minrceps.execute(dftfv);

@@ -24,15 +24,15 @@ using namespace std;
 namespace {
   struct SpectrumCheckItem {
     const double lf, hf;
-    const bool greater;
+    const char op;
     const double thres;
 
-    SpectrumCheckItem(double lf_, double hf_, bool greater_, double thres_) :
-      lf(lf_), hf(hf_), greater(greater_), thres(thres_) {}
+    SpectrumCheckItem(double lf_, double hf_, char op_, double thres_) :
+      lf(lf_), hf(hf_), op(op_), thres(thres_) {}
 
 #if 0
     friend ostream& operator<<(ostream& os, const SpectrumCheckItem& si) {
-      return os << "[" << si.lf << "Hz ... " << si.hf << "Hz " << (si.greater ? '>' : '<') << " " << si.thres << "dB]";
+      return os << "[" << si.lf << "Hz ... " << si.hf << "Hz " << si.op << " " << si.thres << "dB]";
     }
 #endif
   };
@@ -152,8 +152,10 @@ namespace {
       os << "style=\"" << fs << "\"/>" << endl;
     }
 
-    void drawRect(double x, double y, double w, double h, const StrokeStyle& ss=StrokeStyle(Color(0,0,0), 0)) {
-      os << "<rect x=\"" << x << "\" y=\"" << y << "\" width=\"" << w << "\" height=\"" << h << "\" ";
+    void drawRect(double x, double y, double w, double h, const StrokeStyle& ss=StrokeStyle(Color(0,0,0), 0), const string& clipID = "") {
+      os << "<rect ";
+      if (clipID != "") os << "clip-path=\"url(#" << clipID << ")\" ";
+      os << "x=\"" << x << "\" y=\"" << y << "\" width=\"" << w << "\" height=\"" << h << "\" ";
       os << "style=\"" << ss << "\"/>" << endl;
     }
 
@@ -243,10 +245,12 @@ namespace {
       for(auto e : items) {
 	double l = leftMargin + gw * e.lf / (rangekHz * 1000), r = leftMargin + gw * e.hf / (rangekHz * 1000);
 	double y = topMargin  + gh * -e.thres / rangedB;
-	if (e.greater) {
+	if (e.op == '>') {
 	  c.drawRect(l, y, r-l, gh + topMargin - y, fs, StrokeStyle(Color(0,0,0), 1), "graph");
-	} else {
+	} else if (e.op == '<') {
 	  c.drawRect(l, topMargin, r-l, y - topMargin, fs, StrokeStyle(Color(0,0,0), 1), "graph");
+	} else if (e.op == '^') {
+	  c.drawRect(l, topMargin, r-l, y - topMargin, StrokeStyle(Color(0,0,0), 1), "graph");
 	}
       }
     }
@@ -265,8 +269,8 @@ namespace {
       char c;
       if (line.find_first_not_of(' ') == string::npos || line[0] == '#') { ln++; continue; }
       if (sscanf(line.c_str(), "%lf %lf %c %lf", &lf, &hf, &c, &thres) == 4) {
-	if (!(c == '>' || c == '<')) throw(runtime_error((fn + ":" + to_string(ln) + " : error <>").c_str()));
-	ret.push_back(SpectrumCheckItem(lf, hf, c == '>', thres));
+	if (!(c == '>' || c == '<' || c == '^')) throw(runtime_error((fn + ":" + to_string(ln) + " : error <>^").c_str()));
+	ret.push_back(SpectrumCheckItem(lf, hf, c, thres));
       } else throw(runtime_error((fn + ":" + to_string(ln) + " : error").c_str()));
       ln++;
     }
@@ -330,12 +334,21 @@ namespace {
       for(auto p : analysis) {
 	for(auto it : checkItems) {
 	  if (p.first < it.lf || it.hf < p.first) continue;
-	  if (it.greater) {
+	  if (it.op == '>') {
 	    if (!(p.second > it.thres)) return false;
-	  } else {
+	  } else if (it.op == '<') {
 	    if (!(p.second < it.thres)) return false;
 	  }
 	}
+      }
+      for(auto it : checkItems) {
+	if (it.op != '^') continue;
+	double peak = -10000;
+	for(auto p : analysis) {
+	  if (p.first < it.lf || it.hf < p.first) continue;
+	  peak = max(peak, p.second);
+	}
+	if (peak < it.thres) return false;
       }
       return true;
     }
