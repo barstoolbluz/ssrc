@@ -170,14 +170,15 @@ The check file is a plain text file that defines the spectral criteria for the `
   `<low_freq> <high_freq> <comparison> <threshold_db>`
   - `<low_freq>`: The lower bound of the frequency range in Hz (double).
   - `<high_freq>`: The upper bound of the frequency range in Hz (double).
-  - `<comparison>`: The comparison operator, which must be either `<` (less than) or `>` (greater than).
+  - `<comparison>`: The comparison operator. Can be one of `<` (less than), `>` (greater than), or `^` (peak).
   - `<threshold_db>`: The threshold value in decibels (double).
 
 - **Comments**: Lines starting with a `#` character are treated as comments and are ignored. Empty lines are also ignored.
 
-- **Logic**: For a check to pass, **all** frequency components of the signal that fall within the `[low_freq, high_freq]` range must satisfy the condition.
-  - If the comparison is `<`, every spectral point in the range must be below the threshold.
-  - If the comparison is `>`, every spectral point in the range must be above the threshold.
+- **Logic**: The check logic depends on the comparison operator:
+  - **`<`**: Checks if **all** frequency components in the range are **less than** the threshold.
+  - **`>`**: Checks if **all** frequency components in the range are **greater than** the threshold.
+  - **`^`**: Checks if the **peak** frequency component in the range is **greater than or equal to** the threshold.
 
 - **Example**:
   ```

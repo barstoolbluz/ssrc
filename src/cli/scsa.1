@@ -40,7 +40,18 @@ The lower bound of the frequency range in Hz.
 The upper bound of the frequency range in Hz.
 .IP
 .B <comparison>
-The comparison operator, either \fB<\fR (less than) or \fB>\fR (greater than).
+The comparison operator. Can be one of the following:
+.RS
+.TP
+\fB<\fR
+Checks if all frequency components in the range are less than the threshold.
+.TP
+\fB>\fR
+Checks if all frequency components in the range are greater than the threshold.
+.TP
+\fB^\fR
+Checks if the peak frequency component in the range is greater than or equal to the threshold.
+.RE
 .IP
 .B <threshold_db>
 The threshold value in decibels.
