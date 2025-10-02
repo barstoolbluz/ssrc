@@ -65,8 +65,6 @@ namespace shibatch {
       fractionBuf.resize(dftlen);
     }
 
-    DFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const std::vector<REAL> &v) : DFTFilter(in_, v.data(), v.size()) {}
-
     ~DFTFilter() {
       Sleef_free(dftbuf);
       Sleef_free(dftfilter);

@@ -10,6 +10,7 @@
 #include "DFTFilter.hpp"
 #include "PartDFTFilter.hpp"
 #include "Minrceps.hpp"
+#include "ObjectCache.hpp"
 
 #include "shibatch/ssrc.hpp"
 
@@ -156,7 +157,7 @@ namespace shibatch {
       }
       fsos = hfs * osm;
 
-      std::vector<REAL> ppfv, dftfv;
+      std::shared_ptr<std::vector<REAL>> ppfv, dftfv;
 
       if (dfs != sfs) {
 	// sampling frequency (fslcm)    : lcm(lfs, hfs) (Hz)
@@ -166,7 +167,16 @@ namespace shibatch {
 	//                               : guard = 0 => fsos - lfs, guard = 1 => (fsos - lfs)/2, guard = inf => 0
 	// gain                          : fslcm / (double)sfs
 
-	ppfv = KaiserWindow::makeLPF<REAL>(fslcm, (fsos + (lfs - fsos)/(1.0 + guard)) / 2, (fsos - lfs) / (1.0 + guard), aa, fslcm / (double)sfs);
+	std::string keyPP = "KaiserWindow::makeLPF<" + std::string(typeid(REAL).name()) + ">(" +
+	  std::to_string(fslcm) + ", " + std::to_string((fsos + (lfs - fsos)/(1.0 + guard)) / 2) + ", " +
+	  std::to_string((fsos - lfs) / (1.0 + guard)) + ", " + std::to_string(aa) + ", " + std::to_string(fslcm / (double)sfs) + ")";
+
+	ppfv = ssrc::ObjectCache<std::vector<REAL>>::at(keyPP);
+
+	if (!ppfv) {
+	  ppfv = KaiserWindow::makeLPF<REAL>(fslcm, (fsos + (lfs - fsos)/(1.0 + guard)) / 2, (fsos - lfs) / (1.0 + guard), aa, fslcm / (double)sfs);
+	  ssrc::ObjectCache<std::vector<REAL>>::insert(keyPP, ppfv);
+	}
 
 	// sampling frequency (fsos)      : hfs * osm (Hz)
 	// pass-band edge frequency (fp2) : (lfs / 2 - df) (Hz)
@@ -174,36 +184,62 @@ namespace shibatch {
 	// gain                           : 1.0
 
 	double df = KaiserWindow::transitionBandWidth(aa, hfs * osm, dftflen - 1);
-	dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2 - df, dftflen - 1, aa, gain);
 
-	delay = ((ppfv.size() * 0.5 - 1) / fslcm + (dftfv.size() * 0.5 - 1) / (hfs * osm)) * dfs;
+	std::string keyDF = "KaiserWindow::makeLPF<" + std::string(typeid(REAL).name()) + ">(" +
+	  std::to_string(fsos) + ", " + std::to_string(lfs/2) + ", " +
+	  std::to_string(dftflen - 1) + ", " + std::to_string(aa) + ", " + std::to_string(gain) + ")";
+
+	dftfv = ssrc::ObjectCache<std::vector<REAL>>::at(keyDF);
+
+	if (!dftfv) {
+	  dftfv = KaiserWindow::makeLPF<REAL>(fsos, lfs / 2 - df, dftflen - 1, aa, gain);
+	  ssrc::ObjectCache<std::vector<REAL>>::insert(keyDF, dftfv);
+	}
+
+	delay = ((ppfv->size() * 0.5 - 1) / fslcm + (dftfv->size() * 0.5 - 1) / (hfs * osm)) * dfs;
 
 	if (minPhase) {
-	  Minrceps minrceps(dftfv.size() * 8);
+	  Minrceps minrceps(dftfv->size() * 8);
 
-	  ppfv = minrceps.execute(ppfv);
-	  dftfv = minrceps.execute(dftfv);
+	  keyPP = "Minrceps " + keyPP;
+
+	  if (ssrc::ObjectCache<std::vector<REAL>>::count(keyPP) == 0) {
+	    ppfv = minrceps.execute(ppfv);
+	    ssrc::ObjectCache<std::vector<REAL>>::insert(keyPP, ppfv);
+	  } else {
+	    ppfv = ssrc::ObjectCache<std::vector<REAL>>::at(keyPP);
+	  }
+
+	  keyDF = "Minrceps " + keyDF;
+
+	  if (ssrc::ObjectCache<std::vector<REAL>>::count(keyDF) == 0) {
+	    dftfv = minrceps.execute(dftfv);
+	    ssrc::ObjectCache<std::vector<REAL>>::insert(keyDF, dftfv);
+	  } else {
+	    dftfv = ssrc::ObjectCache<std::vector<REAL>>::at(keyDF);
+	  }
+
 	  delay = 0;
 	}
       }
 
       if (dfs > sfs) {
-	ppf = make_shared<FastPP<REAL>>(inlet, sfs, fslcm, fsos, ppfv);
+	ppf = std::make_shared<FastPP<REAL>>(inlet, sfs, fslcm, fsos, ppfv->data(), ppfv->size());
 	if (mindftflen == 0) {
-	  dftf = make_shared<DFTFilter<REAL>>(ppf, dftfv);
-	  undersample = make_shared<Undersample>(dftf, fsos, dfs);
+	  dftf = std::make_shared<DFTFilter<REAL>>(ppf, dftfv->data(), dftfv->size());
+	  undersample = std::make_shared<Undersample>(dftf, fsos, dfs);
 	} else {
-	  pdftf = make_shared<PartDFTFilter<REAL>>(ppf, dftfv, mindftflen, mt);
-	  undersample = make_shared<Undersample>(pdftf, fsos, dfs);
+	  pdftf = std::make_shared<PartDFTFilter<REAL>>(ppf, dftfv->data(), dftfv->size(), mindftflen, mt);
+	  undersample = std::make_shared<Undersample>(pdftf, fsos, dfs);
 	}
       } else if (dfs < sfs) {
-	oversample = make_shared<Oversample>(inlet, sfs, fsos);
+	oversample = std::make_shared<Oversample>(inlet, sfs, fsos);
 	if (mindftflen == 0) {
-	  dftf = make_shared<DFTFilter<REAL>>(oversample, dftfv);
-	  ppf = make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv);
+	  dftf = std::make_shared<DFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size());
+	  ppf = std::make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
 	} else {
-	  pdftf = make_shared<PartDFTFilter<REAL>>(oversample, dftfv, mindftflen, mt);
-	  ppf = make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv);
+	  pdftf = std::make_shared<PartDFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen, mt);
+	  ppf = std::make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
 	}
       }
     }

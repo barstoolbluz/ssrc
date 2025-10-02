@@ -2,6 +2,7 @@
 #define MINRCEPS_HPP
 
 #include <vector>
+#include <memory>
 #include <cmath>
 #include <cstring>
 
@@ -57,13 +58,14 @@ namespace shibatch {
     // Smith AD, Ferguson RJ. Minimum-phase signal calculation using the real cepstrum. CREWES Res. Report. 2014;26(72).
 
     template<typename REAL>
-    std::vector<REAL> execute(std::vector<REAL> in, const double alpha = 1.0 - ldexp(1, -20)) {
-      auto window = createWindow(in.size());
+    std::shared_ptr<std::vector<REAL>> execute(std::shared_ptr<std::vector<REAL>> in, const double alpha = 1.0 - ldexp(1, -20)) {
+      REAL *inp = in->data();
+      auto window = createWindow(in->size());
 
       memset(dftbuf, 0, L * sizeof(double));
 
       double a = 1.0, ein = 0;
-      for(unsigned i=0;i<in.size();i++) { dftbuf[i] = in[i] * a; ein += in[i]; a *= alpha; }
+      for(unsigned i=0;i<in->size();i++) { dftbuf[i] = inp[i] * a; ein += inp[i]; a *= alpha; }
 
       SleefDFT_execute(dftf, dftbuf, dftbuf);
 
@@ -76,20 +78,21 @@ namespace shibatch {
 
       for(unsigned i=1;i<L/2;i++) dftbuf[i] += dftbuf[L - i];
 
-      std::vector<REAL> out(in.size());
+      auto out = std::make_shared<std::vector<REAL>>(in->size());
+      REAL *outp = out->data();
 
-      out[0] = exp(dftbuf[0] / 2) * window[0];
-      double eout = out[0] * out[0];
+      outp[0] = exp(dftbuf[0] / 2) * window[0];
+      double eout = outp[0] * outp[0];
       a = 1.0 / alpha;
-      for(unsigned n=1;n<out.size();n++) {
+      for(unsigned n=1;n<out->size();n++) {
 	double sum = 0;
-	for(unsigned k=1;k<=n;k++) sum += k * (1.0 / n) * dftbuf[k] * out[n - k];
-	out[n] = sum * a * window[n];
-	eout += out[n];
+	for(unsigned k=1;k<=n;k++) sum += k * (1.0 / n) * dftbuf[k] * outp[n - k];
+	outp[n] = sum * a * window[n];
+	eout += outp[n];
 	a *= (1.0 / alpha);
       }
 
-      for(unsigned n=0;n<out.size();n++) out[n] *= ein / eout;
+      for(unsigned n=0;n<out->size();n++) outp[n] *= ein / eout;
 
       return out;
     }

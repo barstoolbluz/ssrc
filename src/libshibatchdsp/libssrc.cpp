@@ -8,6 +8,7 @@
 #include "Dither.hpp"
 #include "ChannelMixer.hpp"
 #include "BGExecutor.hpp"
+#include "ObjectCache.hpp"
 
 #ifndef SSRC_VERSION
 #error SSRC_VERSION not defined
@@ -336,3 +337,8 @@ template ChannelMixer<double>::ChannelMixer(shared_ptr<ssrc::OutletProvider<doub
 template ChannelMixer<double>::~ChannelMixer();
 template shared_ptr<ssrc::StageOutlet<double>> ChannelMixer<double>::getOutlet(uint32_t c);
 template WavFormat ChannelMixer<double>::getFormat();
+
+//
+
+template ObjectCache<double>::Internal ssrc::ObjectCache<double>::internal;
+template ObjectCache<float>::Internal ssrc::ObjectCache<float>::internal;

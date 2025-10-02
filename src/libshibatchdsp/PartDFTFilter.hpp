@@ -108,9 +108,6 @@ namespace shibatch {
       }
     }
 
-    PartDFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const std::vector<REAL> &v, size_t mindftlen_, bool mt_) :
-      PartDFTFilter(in_, v.data(), v.size(), mindftlen_, mt_) {}
-
     ~PartDFTFilter() {}
 
     bool atEnd() { return fractionLen > 0 || !endReached; }

@@ -29,9 +29,6 @@ namespace shibatch {
       buf.resize((firlen + N * dstep) / sstep + 2);
     }
 
-    FastPP(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, int64_t sfs_, int64_t lcmfs_, int64_t dfs_, const std::vector<REAL> &v) :
-      FastPP(in_, sfs_, lcmfs_, dfs_, v.data(), v.size()) {}
-
     bool atEnd() {
       return dpos >= dsize;
     }

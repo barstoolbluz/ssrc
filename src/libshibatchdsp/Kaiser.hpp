@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <vector>
+#include <memory>
 
 #ifndef M_PI
 #define M_PI 3.1415926535897932384626433832795028842
@@ -82,11 +83,12 @@ namespace shibatch {
      * @param aa : stop band attenuation (dB)
      */
     template<typename REAL>
-    static std::vector<REAL> makeLPF(double fs, double fp, double df, double aa, double gain = 1) {
+    static std::shared_ptr<std::vector<REAL>> makeLPF(double fs, double fp, double df, double aa, double gain = 1) {
       double alp = alpha(aa), iza = izero(alp);
       int64_t len = length(aa, fs, df);
-      std::vector<REAL> filter(len);
-      for(int i=0;i<len;i++) filter[i] = window(i - len/2, len, alp, iza) * hn_lpf(i - len/2, fp, fs) * gain;
+      auto filter = std::make_shared<std::vector<REAL>>(len);
+      REAL *filterData = filter->data();
+      for(int i=0;i<len;i++) filterData[i] = window(i - len/2, len, alp, iza) * hn_lpf(i - len/2, fp, fs) * gain;
       return filter;
     }
 
@@ -97,12 +99,13 @@ namespace shibatch {
      * @param aa  : stop band attenuation (dB)
      */
     template<typename REAL>
-    static std::vector<REAL> makeLPF(double fs, double fp, int64_t len, double aa, double gain = 1) {
+    static std::shared_ptr<std::vector<REAL>> makeLPF(double fs, double fp, int64_t len, double aa, double gain = 1) {
       double alp = alpha(aa), iza = izero(alp);
       if ((len & 1) == 0) len++;
-      std::vector<REAL> filter(len);
+      auto filter = std::make_shared<std::vector<REAL>>(len);
+      REAL *filterData = filter->data();
       for(int i=0;i<=len/2;i++)
-	filter[len/2 + i] = filter[len/2 - i] = window(i, len, alp, iza) * hn_lpf(i, fp, fs) * gain;
+	filterData[len/2 + i] = filterData[len/2 - i] = window(i, len, alp, iza) * hn_lpf(i, fp, fs) * gain;
       return filter;
     }
 
