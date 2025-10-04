@@ -6,6 +6,9 @@
 #include <unordered_map>
 #include <mutex>
 
+#include <sleef.h>
+#include <sleefdft.h>
+
 namespace ssrc {
   template<typename T>
   class ObjectCache {
@@ -38,5 +41,30 @@ namespace ssrc {
   };
 
   template<typename T> ObjectCache<T>::Internal ssrc::ObjectCache<T>::internal;
+
+  namespace {
+    template<typename T, typename std::enable_if<(std::is_same<T, double>::value), int>::type = 0>
+    SleefDFT *SleefDFT_init(uint64_t mode, uint32_t n) {
+      return SleefDFT_double_init1d(n, NULL, NULL, mode);
+    }
+
+    template<typename T, typename std::enable_if<(std::is_same<T, float>::value), int>::type = 0>
+    SleefDFT *SleefDFT_init(uint64_t mode, uint32_t n) {
+      return SleefDFT_float_init1d(n, NULL, NULL, mode);
+    }
+  }
+
+  template<typename T, typename std::enable_if<(std::is_same<T, double>::value || std::is_same<T, float>::value), int>::type = 0>
+  std::shared_ptr<SleefDFT> constructSleefDFT(uint64_t mode, uint32_t n) {
+    std::string key = "SleefDFT<" + std::string(typeid(T).name()) + ">(" + std::to_string(mode) + ", " + std::to_string(n) + ")";
+    std::shared_ptr<SleefDFT> ret = ObjectCache<SleefDFT>::at(key);
+
+    if (!ret) {
+      ret = std::shared_ptr<SleefDFT>(SleefDFT_init<T>(mode, n), SleefDFT_dispose);;
+      ObjectCache<SleefDFT>::insert(key, ret);
+    }
+
+    return ret;
+  }
 }
 #endif //#ifndef OBJECTCACHE_HPP

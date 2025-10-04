@@ -5,8 +5,7 @@
 #include <cstring>
 #include <cassert>
 
-#include <sleef.h>
-#include <sleefdft.h>
+#include "ObjectCache.hpp"
 
 #include "shibatch/ssrc.hpp"
 
@@ -29,16 +28,6 @@ namespace shibatch {
       size_t ret = 1;
       for(;n > (1ULL << ret) && ret < 64;ret++) ;
       return ret;
-    }
-
-    template<typename T, typename std::enable_if<(std::is_same<T, double>::value), int>::type = 0>
-    SleefDFT *SleefDFT_init(uint64_t mode, uint32_t n) {
-      return SleefDFT_double_init1d(n, NULL, NULL, mode);
-    }
-
-    template<typename T, typename std::enable_if<(std::is_same<T, float>::value), int>::type = 0>
-    SleefDFT *SleefDFT_init(uint64_t mode, uint32_t n) {
-      return SleefDFT_float_init1d(n, NULL, NULL, mode);
     }
 
     //
@@ -91,8 +80,8 @@ namespace shibatch {
 	  const size_t dftlen = size_t(1) << l2dftlen, dftleno2 = dftlen / 2;
 
 	  const auto m = SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_NO_MT;
-	  dftf[l2dftlen] = std::shared_ptr<SleefDFT>(SleefDFT_init<REAL>(m | SLEEF_MODE_FORWARD , dftlen), SleefDFT_dispose);
-	  dftb[l2dftlen] = std::shared_ptr<SleefDFT>(SleefDFT_init<REAL>(m | SLEEF_MODE_BACKWARD, dftlen), SleefDFT_dispose);
+	  dftf[l2dftlen] = ssrc::constructSleefDFT<REAL>(m | SLEEF_MODE_FORWARD , dftlen);
+	  dftb[l2dftlen] = ssrc::constructSleefDFT<REAL>(m | SLEEF_MODE_BACKWARD, dftlen);
 	  dftfilter_[l2dftlen] = std::shared_ptr<void>(Sleef_malloc(dftlen * sizeof(REAL)), Sleef_free);
 	  dftfilter[l2dftlen] = (REAL *)dftfilter_[l2dftlen].get();
 

@@ -342,3 +342,5 @@ template WavFormat ChannelMixer<double>::getFormat();
 
 template ObjectCache<double>::Internal ssrc::ObjectCache<double>::internal;
 template ObjectCache<float>::Internal ssrc::ObjectCache<float>::internal;
+
+template ObjectCache<SleefDFT>::Internal ssrc::ObjectCache<SleefDFT>::internal;

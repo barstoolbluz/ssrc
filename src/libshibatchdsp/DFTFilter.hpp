@@ -5,8 +5,7 @@
 #include <cstring>
 #include <cassert>
 
-#include <sleef.h>
-#include <sleefdft.h>
+#include "ObjectCache.hpp"
 
 #include "shibatch/ssrc.hpp"
 
@@ -29,29 +28,19 @@ namespace shibatch {
     const size_t firlen, dftleno2, dftlen;
 
     size_t nDispose;
-    SleefDFT *dftf = nullptr, *dftb = nullptr;
+    std::shared_ptr<SleefDFT> dftf, dftb;
     REAL *RESTRICT dftfilter = nullptr, *RESTRICT dftbuf = nullptr;
 
     std::vector<REAL> overlapbuf, fractionBuf;
     size_t fractionLen = 0, nZeroPadding = 0;
     bool endReached = false;
 
-    template<typename T, typename std::enable_if<(std::is_same<T, double>::value), int>::type = 0>
-    SleefDFT *SleefDFT_init(uint64_t mode, uint32_t n) {
-      return SleefDFT_double_init1d(n, NULL, NULL, mode);
-    }
-
-    template<typename T, typename std::enable_if<(std::is_same<T, float>::value), int>::type = 0>
-    SleefDFT *SleefDFT_init(uint64_t mode, uint32_t n) {
-      return SleefDFT_float_init1d(n, NULL, NULL, mode);
-    }
-
   public:
     DFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const REAL *fircoef_, size_t firlen_) :
       in(in_), firlen(firlen_), dftleno2(toPow2(firlen_)), dftlen(dftleno2 * 2) {
 
-      dftf = SleefDFT_init<REAL>(SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_FORWARD  | SLEEF_MODE_NO_MT, dftlen);
-      dftb = SleefDFT_init<REAL>(SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_BACKWARD | SLEEF_MODE_NO_MT, dftlen);
+      dftf = ssrc::constructSleefDFT<REAL>(SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_FORWARD  | SLEEF_MODE_NO_MT, dftlen);
+      dftb = ssrc::constructSleefDFT<REAL>(SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_BACKWARD | SLEEF_MODE_NO_MT, dftlen);
 
       dftfilter  = (REAL *)Sleef_malloc(dftlen   * sizeof(REAL));
       dftbuf     = (REAL *)Sleef_malloc(dftlen   * sizeof(REAL));
@@ -59,7 +48,7 @@ namespace shibatch {
       memset(dftfilter, 0, dftlen * sizeof(REAL));
       for(size_t z=0;z<firlen_;z++) dftfilter[z] = fircoef_[z] * (1.0 / dftleno2);
 
-      SleefDFT_execute(dftf, dftfilter, dftfilter);
+      SleefDFT_execute(dftf.get(), dftfilter, dftfilter);
 
       overlapbuf.resize(dftleno2);
       fractionBuf.resize(dftlen);
@@ -68,8 +57,6 @@ namespace shibatch {
     ~DFTFilter() {
       Sleef_free(dftbuf);
       Sleef_free(dftfilter);
-      SleefDFT_dispose(dftb);
-      SleefDFT_dispose(dftf);
     }
 
     bool atEnd() { return fractionLen > 0 || !endReached; }
@@ -111,7 +98,7 @@ namespace shibatch {
 
 	//
 
-	SleefDFT_execute(dftf, dftbuf, dftbuf);
+	SleefDFT_execute(dftf.get(), dftbuf, dftbuf);
 
 	dftbuf[0] = dftfilter[0] * dftbuf[0];
 	dftbuf[1] = dftfilter[1] * dftbuf[1]; 
@@ -124,7 +111,7 @@ namespace shibatch {
 	  dftbuf[i*2+1] = im;
 	}
 
-	SleefDFT_execute(dftb, dftbuf, dftbuf);
+	SleefDFT_execute(dftb.get(), dftbuf, dftbuf);
 
 	//
 

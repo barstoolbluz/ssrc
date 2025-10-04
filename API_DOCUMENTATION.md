@@ -724,8 +724,7 @@ This helper function creates a quality specification object.
     -   `SSRC_SOXR_HQ`: "High" quality
     -   `SSRC_SOXR_VHQ`: "Very High" quality
 -   `flags`: Additional flags (e.g., for dithering options). `0` is a safe default. The following values can be used.
-    -   `SSRC_SOXR_TPDF`: Use triangular dithering.
-    -   `SSRC_SOXR_NO_DITHER`: Do not use dither.
+    -   `SOXR_MINIMUM_PHASE`: Use minimum phase filter.
 
 ### 3.5. Complete Example
 

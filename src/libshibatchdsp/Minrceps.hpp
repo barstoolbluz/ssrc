@@ -6,8 +6,7 @@
 #include <cmath>
 #include <cstring>
 
-#include <sleef.h>
-#include <sleefdft.h>
+#include "ObjectCache.hpp"
 
 #ifndef M_PI
 #define M_PI 3.1415926535897932384626433832795028842
@@ -39,20 +38,18 @@ namespace shibatch {
     }
 
     const unsigned L;
-    SleefDFT *dftf = nullptr, *dftb = nullptr;
+    std::shared_ptr<SleefDFT> dftf, dftb;
     double *dftbuf = nullptr;
 
   public:
     Minrceps(unsigned L_) : L(toPow2(L_)) {
-      dftf = SleefDFT_double_init1d(L, NULL, NULL, SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_FORWARD  | SLEEF_MODE_NO_MT);
-      dftb = SleefDFT_double_init1d(L, NULL, NULL, SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_BACKWARD | SLEEF_MODE_NO_MT);
+      dftf = ssrc::constructSleefDFT<double>(SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_FORWARD  | SLEEF_MODE_NO_MT, L);
+      dftb = ssrc::constructSleefDFT<double>(SLEEF_MODE_REAL | SLEEF_MODE_ALT | SLEEF_MODE_BACKWARD | SLEEF_MODE_NO_MT, L);
       dftbuf = (double *)Sleef_malloc(L * sizeof(double));
     }
 
     ~Minrceps() {
       Sleef_free(dftbuf);
-      SleefDFT_dispose(dftb);
-      SleefDFT_dispose(dftf);
     }
 
     // Smith AD, Ferguson RJ. Minimum-phase signal calculation using the real cepstrum. CREWES Res. Report. 2014;26(72).
@@ -67,14 +64,14 @@ namespace shibatch {
       double a = 1.0, ein = 0;
       for(unsigned i=0;i<in->size();i++) { dftbuf[i] = inp[i] * a; ein += inp[i]; a *= alpha; }
 
-      SleefDFT_execute(dftf, dftbuf, dftbuf);
+      SleefDFT_execute(dftf.get(), dftbuf, dftbuf);
 
       for(unsigned i=0;i<L/2;i++) {
 	dftbuf[i*2+0] = log(hypot(dftbuf[i*2+0], dftbuf[i*2+1])) * (1.0 / L);
 	dftbuf[i*2+1] = 0;
       }
 
-      SleefDFT_execute(dftb, dftbuf, dftbuf);
+      SleefDFT_execute(dftb.get(), dftbuf, dftbuf);
 
       for(unsigned i=1;i<L/2;i++) dftbuf[i] += dftbuf[L - i];
 
