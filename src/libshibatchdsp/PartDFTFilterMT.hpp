@@ -1,5 +1,5 @@
-#ifndef PARTDFTFILTER_HPP
-#define PARTDFTFILTER_HPP
+#ifndef PARTDFTFILTERMT_HPP
+#define PARTDFTFILTERMT_HPP
 
 #include <vector>
 #include <cstring>
@@ -17,7 +17,7 @@
 
 namespace shibatch {
   template<typename REAL>
-  class PartDFTFilter : public ssrc::StageOutlet<REAL> {
+  class PartDFTFilterMT : public ssrc::StageOutlet<REAL> {
     static constexpr const size_t toPow2(size_t n) {
       size_t ret = 1;
       for(;ret < n && ret != 0;ret *= 2) ;
@@ -50,7 +50,7 @@ namespace shibatch {
     size_t dftCount = 0;
 
   public:
-    PartDFTFilter(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const REAL *fircoef_, size_t firlen_, size_t mindftlen_) :
+    PartDFTFilterMT(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, const REAL *fircoef_, size_t firlen_, size_t mindftlen_) :
       in(in_), firlen(firlen_), maxdftleno2(toPow2(firlen_)/2), maxdftlen(maxdftleno2 * 2), l2maxdftlen(ilog2(maxdftlen)),
       mindftlen(toPow2(mindftlen_)), mindftleno2(mindftlen / 2), l2mindftlen(ilog2(mindftlen)) {
 
@@ -231,4 +231,4 @@ namespace shibatch {
     }
   };
 }
-#endif // #ifndef PARTDFTFILTER_HPP
+#endif // #ifndef PARTDFTFILTERMT_HPP

@@ -9,6 +9,7 @@
 #include "FastPP.hpp"
 #include "DFTFilter.hpp"
 #include "PartDFTFilter.hpp"
+#include "PartDFTFilterMT.hpp"
 #include "Minrceps.hpp"
 #include "ObjectCache.hpp"
 
@@ -132,6 +133,7 @@ namespace shibatch {
     std::shared_ptr<FastPP<REAL>> ppf;
     std::shared_ptr<DFTFilter<REAL>> dftf;
     std::shared_ptr<PartDFTFilter<REAL>> pdftf;
+    std::shared_ptr<PartDFTFilterMT<REAL>> pdftfmt;
     std::shared_ptr<Oversample> oversample;
     std::shared_ptr<Undersample> undersample;
 
@@ -228,18 +230,24 @@ namespace shibatch {
 	if (mindftflen == 0) {
 	  dftf = std::make_shared<DFTFilter<REAL>>(ppf, dftfv->data(), dftfv->size());
 	  undersample = std::make_shared<Undersample>(dftf, fsos, dfs);
-	} else {
-	  pdftf = std::make_shared<PartDFTFilter<REAL>>(ppf, dftfv->data(), dftfv->size(), mindftflen, mt);
+	} else if (!mt) {
+	  pdftf = std::make_shared<PartDFTFilter<REAL>>(ppf, dftfv->data(), dftfv->size(), mindftflen);
 	  undersample = std::make_shared<Undersample>(pdftf, fsos, dfs);
+	} else {
+	  pdftfmt = std::make_shared<PartDFTFilterMT<REAL>>(ppf, dftfv->data(), dftfv->size(), mindftflen);
+	  undersample = std::make_shared<Undersample>(pdftfmt, fsos, dfs);
 	}
       } else if (dfs < sfs) {
 	oversample = std::make_shared<Oversample>(inlet, sfs, fsos);
 	if (mindftflen == 0) {
 	  dftf = std::make_shared<DFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size());
 	  ppf = std::make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
-	} else {
-	  pdftf = std::make_shared<PartDFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen, mt);
+	} else if (!mt) {
+	  pdftf = std::make_shared<PartDFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen);
 	  ppf = std::make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
+	} else {
+	  pdftfmt = std::make_shared<PartDFTFilterMT<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen);
+	  ppf = std::make_shared<FastPP<REAL>>(pdftfmt, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
 	}
       }
     }

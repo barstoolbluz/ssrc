@@ -137,6 +137,24 @@ pipeline {
                          '''
                      }
                 }
+
+                stage('aarch64 macos AppleClang') {
+                     agent { label 'macos' }
+                     options { skipDefaultCheckout() }
+                     steps {
+                         cleanWs()
+                         checkout scm
+                         sh '''
+                         eval "$(/opt/homebrew/bin/brew shellenv)"
+                         mkdir build
+                         cd build
+                         cmake -GNinja -DCMAKE_INSTALL_PREFIX=../../install ..
+                         cmake -E time ninja
+                         export CTEST_OUTPUT_ON_FAILURE=TRUE
+                         ctest -j 8
+                         '''
+                     }
+                }
             }
         }
     }

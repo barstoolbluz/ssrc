@@ -32,11 +32,14 @@ namespace ssrc {
 namespace shibatch {
   class LambdaRunner : public Runnable {
     const function<void(void *)> f;
-    void *ptr;
+    const function<void(void *, void *)> g;
+    void *ptrf, *ptrg;
   public:
-    LambdaRunner(function<void(void *)> f_, void *ptr_) : f(f_), ptr(ptr_) {}
+    LambdaRunner(function<void(void *)> f_, void *ptrf_,
+		 function<void(void *, void *)> g_, void *ptrg_) : f(f_), g(g_), ptrf(ptrf_), ptrg(ptrg_) {}
     ~LambdaRunner() {}
-    void run() { f(ptr); }
+    void run() { f(ptrf); }
+    void postProcess(void *p) { g(ptrg, p); }
   };
 
   class BGExecutorStatic {
@@ -99,8 +102,9 @@ namespace shibatch {
 
   BGExecutorStatic bgExecutorStatic;
 
-  shared_ptr<Runnable> Runnable::factory(function<void(void *)> f, void *p) {
-    return make_shared<LambdaRunner>(f, p);
+  shared_ptr<Runnable> Runnable::factory(function<void(void *)> f, void *p,
+					 function<void(void *, void *)> g, void *q) {
+    return make_shared<LambdaRunner>(f, p, g, q);
   }
 
   void BGExecutor::push(shared_ptr<Runnable> job) {
@@ -109,6 +113,7 @@ namespace shibatch {
     bgExecutorStatic.addWorkerIfNecessary();
     bgExecutorStatic.que.push(job);
     bgExecutorStatic.condVar.notify_all();
+    size_++;
   }
 
   shared_ptr<Runnable> BGExecutor::pop() {
@@ -119,6 +124,7 @@ namespace shibatch {
 
       auto r = std::move(que.front());
       que.pop();
+      size_--;
 
       return r;
     }
@@ -136,6 +142,7 @@ namespace shibatch {
 	if (!que.empty()) {
 	  auto ret = std::move(que.front());
 	  que.pop();
+	  size_--;
 	  return ret;
 	}
 
@@ -144,6 +151,11 @@ namespace shibatch {
 
       r->run();
     }
+  }
+
+  size_t BGExecutor::size() {
+    unique_lock lock(bgExecutorStatic.mtx);
+    return size_;
   }
 }
 
