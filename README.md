@@ -300,6 +300,16 @@ imbalance not only discourages openness, but also undermines the
 sustainability of an ecosystem that has become a vital part of modern
 society.
 
+To be specific about what is happening across the ecosystem: A
+developer writes code they find useful and releases it as FOSS. It
+becomes popular, and soon, large companies incorporate it into their
+commercial products, profiting significantly. Feature and fix requests
+begin to flood in, yet none are accompanied by financial support. The
+maintainer eventually realizes there is no personal or professional
+benefit in responding to this uncompensated demand, leading to burnout
+and, ultimately, project abandonment. This is the unsustainable cycle
+we are addressing.
+
 This is not a call for conflict between FOSS developers and users, but
 a proposal to build a collaborative relationship to create value
 together and make our work sustainable. We especially ask that
@@ -348,12 +358,14 @@ a conventional operational expense, removing internal barriers and
 making sustainability a straightforward business practice.
 
 Our goal is to maintain this project stably over the long term and
-develop it into something even more valuable for all users.
-Supporting this project helps strengthen the foundation of a healthier
-and more sustainable open-source ecosystem, where creators and users
-work together responsibly. We hope our collaborative approach can
-contribute, in its own small way, to shaping a more balanced and
-enduring future for FOSS.
+make it even more valuable for all users. In an industry where many
+projects are forced to abandon FOSS licenses, our preference is to
+continue offering this project under a true open-source
+license. However, the long-term viability of this FOSS-first approach
+depends directly on the willingness of our commercial beneficiaries to
+invest in the ecosystem they rely on. We hope our collaborative
+approach can contribute to shaping a more balanced and enduring future
+for FOSS.
 
 For details, please see our [Code of
 Conduct](https://github.com/shibatch/nofreelunch?tab=coc-ov-file) or
