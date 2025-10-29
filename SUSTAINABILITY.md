@@ -17,7 +17,9 @@ ecosystem is based on a culture of mutual respect and contribution
 built upon that freedom. We believe that accepting the "value" of a
 project's output while unilaterally refusing dialogue with its
 creators simply because they are individuals undermines the
-sustainability of this ecosystem.
+sustainability of this ecosystem. Such companies should not turn a
+blind eye to the reality that someone must bear the costs to make the
+cycle sustainable.
 
 This issue is not just about corporations; it reflects a deeper
 cultural expectation within the FOSS ecosystem itself. Over time, we
@@ -32,13 +34,33 @@ imbalance not only discourages openness, but also undermines the
 sustainability of an ecosystem that has become a vital part of modern
 society.
 
-This is not a call for conflict between FOSS developers and users, but
-a proposal to build a collaborative relationship to create value
-together and make our work sustainable. We especially ask that
-corporations incorporating our project's deliverables into their
-products or services for commercial gain partner with us to support
-the project's maintenance for the healthy development of the
-ecosystem.
+To explain the phenomenon occurring across the entire ecosystem:
+Developers write code they find useful and release it as FOSS. It
+gains popularity, and soon large corporations incorporate it into
+their products, reaping substantial profits. Requests for new features
+and fixes flood in, yet no financial support accompanies
+them. Eventually, the maintainer realizes there is no personal or
+professional benefit in responding to these unpaid demands. The skills
+required to develop popular FOSS are often in high demand in other
+fields as well. Ultimately, the maintainer burns out and the project
+is abandoned. This is the unsustainable cycle we are tackling.
+
+Within this unsustainable cycle, adopting FOSS into products while
+fully aware of this situation is hardly beneficial for either
+companies or the society at large. To make the cycle sustainable,
+everyone must recognize the reality that someone must bear the costs,
+and these costs are equivalent to what companies would need to develop
+and maintain comparable products. This project specifically requests
+companies profiting from our deliverables to contribute to maintaining
+the project.
+
+To be clear, this is not a request for charity; it is a proposal to
+manage the operational risk. This is a systemic challenge originating
+not from the developers, but from within the organizations that
+consume and whose business continuity depends on FOSS. When a project
+is abandoned due to this unresolved issue, the primary victims are not
+the developers-who move on to other opportunities-but the companies
+who built their products on an unmaintained foundation.
 
 #### Our Request for Support
 
@@ -70,22 +92,23 @@ the majority of our users are not asked to pay**, while seeking
 appropriate support from companies that derive significant value from
 our project.
 
-We understand that corporate procurement processes are often not
-designed with FOSS sustainability in mind. This systemic issue can
-only be solved through cooperation. We are committed to finding a
-practical path forward together. Active partnership is essential in
-structuring a financial relationship that aligns with standard
+We understand that corporate procurement processes were not designed
+with FOSS sustainability in mind. We are committed to finding a
+practical path forward, but your partnership is essential in
+structuring a financial relationship that aligns with your standard
 corporate procedures. Our mutual goal is to treat this partnership as
-a conventional operational expense, removing internal barriers and
-making sustainability a straightforward business practice.
+a conventional operational expense, removing your internal barriers
+and making sustainability a straightforward business practice.
 
 Our goal is to maintain this project stably over the long term and
-develop it into something even more valuable for all users.
-Supporting this project helps strengthen the foundation of a healthier
-and more sustainable open-source ecosystem, where creators and users
-work together responsibly. We hope our collaborative approach can
-contribute, in its own small way, to shaping a more balanced and
-enduring future for FOSS.
+make it even more valuable for all users. In an industry where many
+projects are forced to abandon FOSS licenses, our preference is to
+continue offering this project under a true open-source
+license. However, the long-term viability of this FOSS-first approach
+depends directly on the willingness of our commercial beneficiaries to
+invest in the ecosystem they rely on. We hope our collaborative
+approach can contribute to shaping a more balanced and enduring future
+for FOSS.
 
 For details, please see our [Code of
 Conduct](https://github.com/shibatch/nofreelunch?tab=coc-ov-file) or
