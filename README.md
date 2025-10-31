@@ -2,6 +2,20 @@
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shibatch/SSRC)
 
+## About This Fork
+
+This is a fork of [shibatch/SSRC](https://github.com/shibatch/SSRC) that adds **reproducible Nix and Flox build support**:
+
+- **Nix Flake** (`flake.nix`) - Build with standard Nix: `nix build`
+- **Flox Build** (`.flox/pkgs/ssrc.nix`) - Build, package, and publish with [Flox](https://flox.dev): `flox build`
+- **Development Environments** - Drop into a dev shell with all dependencies: `nix develop` or `flox activate`
+
+Both build systems provide fully reproducible, sandboxed builds that work across Linux and macOS. See the [Building](#building) section below for details.
+
+**Original project**: https://github.com/shibatch/SSRC
+
+---
+
 **You can download Windows binaries from [Releases](https://github.com/shibatch/SSRC/releases) (under Assets)**.
 
 **If you have any thoughts or comments about this project, feel free to post them in [Discussions](https://github.com/shibatch/SSRC/discussions)**.
@@ -203,11 +217,50 @@ A modern, C++17 API that uses templates and standard library features for flexib
 ### C API (`ssrcsoxr.h`)
 A C-language API that is compatible with the popular SoX Resampler library (`libsoxr`). By defining `SSRC_LIBSOXR_EMULATION`, SSRC can serve as a drop-in replacement for `soxr` in existing projects.
 
-### How to Build the Library
+## Building
+
+### Option 1: Build with Nix (Recommended)
+
+The Nix flake provides fully reproducible builds with all dependencies managed automatically:
+
+```bash
+# Build the package
+nix build
+
+# Run ssrc directly
+nix run
+
+# Run spectrum analyzer
+nix run .#scsa
+
+# Enter development shell
+nix develop
+```
+
+The built binaries will be in `./result/bin/`.
+
+### Option 2: Build with Flox
+
+[Flox](https://flox.dev) provides the same Nix-based reproducibility with a more user-friendly interface:
+
+```bash
+# Build and package
+flox build
+
+# Enter development environment
+flox activate
+
+# Publish to Flox catalog (after setting up auth)
+flox publish ssrc
+```
+
+The built binaries will be in `./result-ssrc/bin/`.
+
+### Option 3: Build with CMake (Traditional)
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/shibatch/ssrc
+    git clone https://github.com/barstoolbluz/ssrc
     cd ssrc
     ```
 2. Make a separate directory to create an out-of-source build:
