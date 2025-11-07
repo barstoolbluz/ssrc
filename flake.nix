@@ -68,6 +68,20 @@
             chmod -R u+w submodules/sleef
           '';
 
+          env = {
+            NIX_CFLAGS_COMPILE = toString ([
+              "-fvisibility=hidden"
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              "-mmacosx-version-min=13.3"
+            ]);
+            NIX_CXXFLAGS_COMPILE = toString ([
+              "-fvisibility=hidden"
+              "-fvisibility-inlines-hidden"
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              "-mmacosx-version-min=13.3"
+            ]);
+          };
+
           cmakeFlags = [
             "-DCMAKE_BUILD_TYPE=Release"
             "-DBUILD_TESTS=ON"
