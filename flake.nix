@@ -53,7 +53,7 @@
 
           nativeBuildInputs = with pkgs; [
             cmake
-            git
+            pkg-config
           ];
 
           buildInputs = with pkgs; [
@@ -61,9 +61,11 @@
             sleef
           ];
 
-          # Provide pre-built SLEEF so CMake doesn't try to download it
+          # Provide pre-built SLEEF source so CMake's ExternalProject path 1 works,
+          # AND pkg-config (path 2) can find the pre-built sleef in buildInputs.
           preConfigure = ''
             mkdir -p submodules
+            rm -rf submodules/sleef
             cp -r ${sleefSrc} submodules/sleef
             chmod -R u+w submodules/sleef
           '';
