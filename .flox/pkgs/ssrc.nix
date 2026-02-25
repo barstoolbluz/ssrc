@@ -30,6 +30,9 @@ let
       "-DSLEEF_ENFORCE_DFT=ON"
       "-DSLEEFDFT_ENABLE_PARALLELFOR=ON"
       "-DSLEEF_BUILD_TESTS=OFF"
+      # Ensure symbols are visible when statically linking on Darwin
+      "-DCMAKE_C_VISIBILITY_PRESET=default"
+      "-DCMAKE_CXX_VISIBILITY_PRESET=default"
     ];
 
     postInstall = ''
@@ -68,6 +71,9 @@ in stdenv.mkDerivation rec {
     "-DCMAKE_BUILD_TYPE=Release"
     "-DBUILD_TESTS=ON"
     "-DBUILD_CLI=ON"
+    # Ensure symbols are visible when statically linking on Darwin
+    "-DCMAKE_C_VISIBILITY_PRESET=default"
+    "-DCMAKE_CXX_VISIBILITY_PRESET=default"
   ];
 
   # Help CMake find the pre-built SLEEF
