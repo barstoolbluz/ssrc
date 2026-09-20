@@ -1,0 +1,27 @@
+From a08f79956de3c58af20d27eea386a0d170deb846 Mon Sep 17 00:00:00 2001
+From: OpenAI <noreply@openai.com>
+Date: Sun, 20 Sep 2026 02:23:50 +0000
+Subject: [PATCH 0/3] SSRC finite-stream output contract
+
+SSRC finite-file output repair for Tonepoet.
+
+Emit standards-correct floating-point fact metadata and publish the mathematically aligned finite destination timeline without changing the existing FIR/FFT arithmetic.
+
+OpenAI (3):
+  wavwriter: emit floating-point fact frame counts
+  resampler: publish the finite aligned timeline
+  tests: cover floating containers and finite timelines
+
+ src/libshibatchdsp/FastPP.hpp     |  33 ++-
+ src/libshibatchdsp/SRC.hpp        | 136 ++++++++--
+ src/libshibatchdsp/xdr_wav.h      |  94 +++++--
+ src/tester/CMakeLists.txt         |  30 ++-
+ src/tester/test_finite_stream.cpp | 431 ++++++++++++++++++++++++++++++
+ 5 files changed, 662 insertions(+), 62 deletions(-)
+ create mode 100644 src/tester/test_finite_stream.cpp
+
+
+base-commit: b769add0756157ea88d1bbf9023e06c437485a79
+-- 
+2.47.3
+

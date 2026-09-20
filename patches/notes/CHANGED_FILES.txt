@@ -1,0 +1,5 @@
+M	src/libshibatchdsp/FastPP.hpp
+M	src/libshibatchdsp/SRC.hpp
+M	src/libshibatchdsp/xdr_wav.h
+M	src/tester/CMakeLists.txt
+A	src/tester/test_finite_stream.cpp

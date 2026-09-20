@@ -1,0 +1,296 @@
+From 7a4096d9b62ddc76f66af7be671e42b4db5746d5 Mon Sep 17 00:00:00 2001
+From: OpenAI <noreply@openai.com>
+Date: Sun, 20 Sep 2026 01:21:00 +0000
+Subject: [PATCH 2/3] resampler: publish the finite aligned timeline
+
+---
+ src/libshibatchdsp/FastPP.hpp |  33 ++++++---
+ src/libshibatchdsp/SRC.hpp    | 136 +++++++++++++++++++++++++++-------
+ 2 files changed, 133 insertions(+), 36 deletions(-)
+
+diff --git a/src/libshibatchdsp/FastPP.hpp b/src/libshibatchdsp/FastPP.hpp
+index 873916c03f1117285b882fa93b619f02b250abcf..99c1fe96d6e1cec1fdbe29d6fbc407f4dcbd0b5f 100644
+--- a/src/libshibatchdsp/FastPP.hpp
++++ b/src/libshibatchdsp/FastPP.hpp
+@@ -13,15 +13,15 @@ namespace shibatch {
+   class FastPP : public ssrc::StageOutlet<REAL> {
+     const size_t N = 65536;
+     std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
+-    const size_t sfs, lcmfs, dfs, sstep, dstep, firlen;
++    const size_t sfs, lcmfs, dfs, sstep, dstep, firlen, phaseOffset;
+ 
+     std::vector<REAL> buf;
+     std::vector<std::vector<REAL>> fircoef;
+-    size_t dpos = 0, ssize = 0, dsize = 0, buflast = 0;
++    size_t dpos = 0, ssize = 0, dsize = 0, buflast = 0, bufOrigin = 0;
+ 
+   public:
+-    FastPP(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, int64_t sfs_, int64_t lcmfs_, int64_t dfs_, const REAL *fircoef_, size_t firlen_) :
+-      inlet(in_), sfs(sfs_), lcmfs(lcmfs_), dfs(dfs_), sstep(lcmfs / sfs), dstep(lcmfs / dfs), firlen(firlen_) {
++    FastPP(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, int64_t sfs_, int64_t lcmfs_, int64_t dfs_, const REAL *fircoef_, size_t firlen_, size_t phaseOffset_ = 0) :
++      inlet(in_), sfs(sfs_), lcmfs(lcmfs_), dfs(dfs_), sstep(lcmfs / sfs), dstep(lcmfs / dfs), firlen(firlen_), phaseOffset(phaseOffset_) {
+       fircoef.resize(sstep);
+       for(size_t i=0;i<sstep;i++) fircoef[i].resize((firlen + sstep - 1) / sstep);
+       for(size_t i=0;i<firlen;i++) fircoef[i % sstep][i / sstep] = fircoef_[firlen - 1 - i];
+@@ -48,12 +48,20 @@ namespace shibatch {
+ 	buflast += nRead;
+ 	memset(buf.data() + buflast, 0, (buf.size() - buflast) * sizeof(REAL));
+ 
+-	const size_t sorg = (dpos * dstep + sstep - 1) / sstep;
++	const size_t sorgPhase = phaseOffset + dpos * dstep;
++	const size_t sorg = (sorgPhase + sstep - 1) / sstep;
++	if (sorg > bufOrigin) {
++	  const size_t advance = sorg - bufOrigin;
++	  memmove(buf.data(), buf.data() + advance, (buf.size() - advance) * sizeof(REAL));
++	  buflast = buflast > advance ? buflast - advance : 0;
++	  bufOrigin = sorg;
++	}
+ 	const size_t bs = std::min(nSamples, N);
+ 
+ 	for(size_t i=0;i<bs && dpos < dsize;i++) {
+-	  const size_t spos = (dpos * dstep + sstep - 1) / sstep;
+-	  const size_t filterpos = spos * sstep - dpos * dstep;
++	  const size_t phase = phaseOffset + dpos * dstep;
++	  const size_t spos = (phase + sstep - 1) / sstep;
++	  const size_t filterpos = spos * sstep - phase;
+ 
+ 	  if ((firlen + sstep - 1) / sstep - 1 + (spos - sorg) >= buflast && !endReached) break;
+ 
+@@ -68,9 +76,14 @@ namespace shibatch {
+ 	  nSamples--;
+ 	}
+ 
+-	const size_t slast = (dpos * dstep + sstep - 1) / sstep;
+-	memmove(buf.data(), buf.data() + (slast - sorg), (buf.size() - (slast - sorg)) * sizeof(REAL));
+-	buflast -= slast - sorg;
++	const size_t slastPhase = phaseOffset + dpos * dstep;
++	const size_t slast = (slastPhase + sstep - 1) / sstep;
++	if (slast > bufOrigin) {
++	  const size_t advance = slast - bufOrigin;
++	  memmove(buf.data(), buf.data() + advance, (buf.size() - advance) * sizeof(REAL));
++	  buflast = buflast > advance ? buflast - advance : 0;
++	  bufOrigin = slast;
++	}
+       }
+ 
+       return nOut;
+diff --git a/src/libshibatchdsp/SRC.hpp b/src/libshibatchdsp/SRC.hpp
+index 148f4f59a50790f4aeb8edd1a44ed68c50df4e3f..445b4d0cb74ee84fea48ddf2340bdfd0857e6a63 100644
+--- a/src/libshibatchdsp/SRC.hpp
++++ b/src/libshibatchdsp/SRC.hpp
+@@ -4,6 +4,7 @@
+ #include <cstdint>
+ #include <string>
+ #include <algorithm>
++#include <limits>
+ 
+ #include "Kaiser.hpp"
+ #include "FastPP.hpp"
+@@ -28,6 +29,47 @@ namespace shibatch {
+       return x;
+     }
+ 
++    static uint64_t roundedFrameCount(uint64_t n, uint64_t sfs, uint64_t dfs) {
++      // Round n * dfs / sfs to the nearest destination frame, with exact
++      // half-frame ties rounded up. Split at source-frame boundaries so the
++      // multiplication involving stream length cannot overflow first.
++      const uint64_t whole = n / sfs;
++      const uint64_t remainder = n % sfs;
++      if (whole != 0 && dfs > std::numeric_limits<uint64_t>::max() / whole)
++	throw(std::overflow_error("SSRCStage output frame count overflow"));
++      const uint64_t base = whole * dfs;
++
++      if (remainder != 0 && dfs > std::numeric_limits<uint64_t>::max() / remainder)
++	throw(std::overflow_error("SSRCStage output frame remainder overflow"));
++      const uint64_t numerator = remainder * dfs;
++      const uint64_t quotient = numerator / sfs;
++      const uint64_t residual = numerator % sfs;
++      const uint64_t roundedRemainder = quotient + (residual >= (sfs + 1) / 2 ? 1 : 0);
++      if (roundedRemainder > std::numeric_limits<uint64_t>::max() - base)
++	throw(std::overflow_error("SSRCStage output frame count overflow"));
++      return base + roundedRemainder;
++    }
++
++    class CountingOutlet : public ssrc::StageOutlet<REAL> {
++      std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
++      uint64_t framesRead = 0;
++      bool endReached = false;
++    public:
++      CountingOutlet(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_) : inlet(inlet_) {}
++
++      bool atEnd() { return endReached || inlet->atEnd(); }
++
++      size_t read(REAL *out, size_t nSamples) {
++	size_t nRead = inlet->read(out, nSamples);
++	if (nRead == 0) endReached = true;
++	else framesRead += nRead;
++	return nRead;
++      }
++
++      uint64_t size() const { return framesRead; }
++      bool ended() const { return endReached; }
++    };
++
+     class Oversample : public ssrc::StageOutlet<REAL> {
+       std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
+       const int64_t sfs, dfs, m;
+@@ -120,13 +162,14 @@ namespace shibatch {
+       }
+     };
+ 
+-    std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
++    std::shared_ptr<CountingOutlet> inlet;
+     const int64_t sfs, dfs, fslcm, lfs, hfs;
+ 
+     const int64_t dftflen, mindftflen;
+     const double aa, guard, gain;
+     const bool minPhase, mt;
+-    double delay = 0;
++    uint64_t phaseOffset = 0, latencyFrames = 0, discardedFrames = 0, publishedFrames = 0;
++    std::vector<REAL> discardBuf;
+ 
+     int64_t osm, fsos;
+ 
+@@ -137,11 +180,23 @@ namespace shibatch {
+     std::shared_ptr<Oversample> oversample;
+     std::shared_ptr<Undersample> undersample;
+ 
++    size_t readRaw(REAL *out, size_t nSamples) {
++      if (dfs > sfs) {
++	return undersample->read(out, nSamples);
++      } else if (dfs < sfs) {
++	return ppf->read(out, nSamples);
++      } else {
++	size_t nr = inlet->read(out, nSamples);
++	for(size_t i=0;i<nr;i++) out[i] *= gain;
++	return nr;
++      }
++    }
++
+   public:
+     SSRCStage(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
+ 	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1, double gain_ = 1,
+ 	      bool minPhase_ = false, unsigned l2mindftflen_ = 0, bool mt_ = true) :
+-      inlet(inlet_), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
++      inlet(std::make_shared<CountingOutlet>(inlet_)), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
+       lfs(std::min(sfs_, dfs_)), hfs(std::max(sfs_, dfs_)),
+       dftflen(1LL << l2dftflen_), mindftflen(l2mindftflen_ == 0 ? 0 : (1LL << l2mindftflen_)),
+       aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_), mt(mt_) {
+@@ -198,8 +253,20 @@ namespace shibatch {
+ 	  ssrc::ObjectCache<std::vector<REAL>>::insert(keyDF, dftfv);
+ 	}
+ 
+-	delay = ((ppfv->size() * 0.5 - 1) / fslcm + (dftfv->size() * 0.5 - 1) / (hfs * osm)) * dfs;
+-
++	// FastPP evaluates its symmetric FIR by reading ahead, so its group
++	// delay advances the signal. The FFT FIR is causal and delays it. Keep
++	// the relationship in exact LCM-clock ticks, then use the polyphase
++	// origin to remove the fractional destination-frame part of the latency.
++	const uint64_t ppfCenter = (ppfv->size() - 1) / 2;
++	const uint64_t dftCenter = (dftfv->size() - 1) / 2;
++	const uint64_t dftTick = fslcm / fsos;
++	const uint64_t dstTick = fslcm / dfs;
++	const uint64_t delayTicks = dftCenter * dftTick - ppfCenter;
++
++	if (!minPhase) {
++	  phaseOffset = delayTicks % dstTick;
++	  latencyFrames = delayTicks / dstTick;
++	}
+ 	if (minPhase) {
+ 	  Minrceps minrceps(dftfv->size() * 8);
+ 
+@@ -221,12 +288,16 @@ namespace shibatch {
+ 	    dftfv = ssrc::ObjectCache<std::vector<REAL>>::at(keyDF);
+ 	  }
+ 
+-	  delay = 0;
++	  phaseOffset = 0;
++	  latencyFrames = 0;
+ 	}
++
++	if (latencyFrames != 0)
++	  discardBuf.resize(std::min<uint64_t>(65536, latencyFrames));
+       }
+ 
+       if (dfs > sfs) {
+-	ppf = std::make_shared<FastPP<REAL>>(inlet, sfs, fslcm, fsos, ppfv->data(), ppfv->size());
++	ppf = std::make_shared<FastPP<REAL>>(inlet, sfs, fslcm, fsos, ppfv->data(), ppfv->size(), phaseOffset);
+ 	if (mindftflen == 0) {
+ 	  dftf = std::make_shared<DFTFilter<REAL>>(ppf, dftfv->data(), dftfv->size());
+ 	  undersample = std::make_shared<Undersample>(dftf, fsos, dfs);
+@@ -241,40 +312,53 @@ namespace shibatch {
+ 	oversample = std::make_shared<Oversample>(inlet, sfs, fsos);
+ 	if (mindftflen == 0) {
+ 	  dftf = std::make_shared<DFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size());
+-	  ppf = std::make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
++	  ppf = std::make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size(), phaseOffset);
+ 	} else if (!mt) {
+ 	  pdftf = std::make_shared<PartDFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen);
+-	  ppf = std::make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
++	  ppf = std::make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size(), phaseOffset);
+ 	} else {
+ 	  pdftfmt = std::make_shared<PartDFTFilterMT<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen);
+-	  ppf = std::make_shared<FastPP<REAL>>(pdftfmt, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
++	  ppf = std::make_shared<FastPP<REAL>>(pdftfmt, fsos, fslcm, dfs, ppfv->data(), ppfv->size(), phaseOffset);
+ 	}
+       }
+     }
+ 
+     bool atEnd() {
+-      if (dfs > sfs) {
+-	return undersample->atEnd();
+-      } else if (dfs < sfs) {
+-	return ppf->atEnd();
+-      } else {
+-	return inlet->atEnd();
+-      }
++      if (!inlet->ended()) return false;
++      return publishedFrames >= roundedFrameCount(inlet->size(), sfs, dfs);
+     }
+ 
+     size_t read(REAL *out, size_t nSamples) {
+-      if (dfs > sfs) {
+-	return undersample->read(out, nSamples);
+-      } else if (dfs < sfs) {
+-	return ppf->read(out, nSamples);
+-      } else {
+-	size_t nr = inlet->read(out, nSamples);
+-	for(size_t i=0;i<nr;i++) out[i] *= gain;
+-	return nr;
++      while(discardedFrames < latencyFrames) {
++	const size_t want = std::min<uint64_t>(discardBuf.size(), latencyFrames - discardedFrames);
++	const size_t nRead = readRaw(discardBuf.data(), want);
++	if (nRead == 0) return 0;
++	discardedFrames += nRead;
+       }
++
++      if (inlet->ended()) {
++	const uint64_t targetFrames = roundedFrameCount(inlet->size(), sfs, dfs);
++	if (publishedFrames >= targetFrames) return 0;
++	nSamples = std::min<uint64_t>(nSamples, targetFrames - publishedFrames);
++      }
++
++      size_t nRead = readRaw(out, nSamples);
++
++      // EOF can become known while readRaw() is servicing this request. By
++      // then the filters may have produced their convolution tail, so clamp
++      // the final read to the finite destination timeline before publishing.
++      if (inlet->ended()) {
++	const uint64_t targetFrames = roundedFrameCount(inlet->size(), sfs, dfs);
++	const uint64_t remaining = targetFrames > publishedFrames ? targetFrames - publishedFrames : 0;
++	nRead = std::min<uint64_t>(nRead, remaining);
++      }
++
++      publishedFrames += nRead;
++      return nRead;
+     }
+ 
+-    double getDelay() { return delay; }
++    // The finite-stream publication layer compensates resampler latency.
++    double getDelay() { return 0; }
+   };
+ }
+ #endif // #ifndef SRC_HPP
+-- 
+2.47.3
+

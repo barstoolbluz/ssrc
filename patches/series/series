@@ -1,0 +1,3 @@
+0001-wavwriter-emit-floating-point-fact-frame-counts.patch
+0002-resampler-publish-the-finite-aligned-timeline.patch
+0003-tests-cover-floating-containers-and-finite-timelines.patch

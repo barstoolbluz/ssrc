@@ -1,0 +1,1026 @@
+diff --git a/src/libshibatchdsp/FastPP.hpp b/src/libshibatchdsp/FastPP.hpp
+index 873916c03f1117285b882fa93b619f02b250abcf..99c1fe96d6e1cec1fdbe29d6fbc407f4dcbd0b5f 100644
+--- a/src/libshibatchdsp/FastPP.hpp
++++ b/src/libshibatchdsp/FastPP.hpp
+@@ -13,15 +13,15 @@ namespace shibatch {
+   class FastPP : public ssrc::StageOutlet<REAL> {
+     const size_t N = 65536;
+     std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
+-    const size_t sfs, lcmfs, dfs, sstep, dstep, firlen;
++    const size_t sfs, lcmfs, dfs, sstep, dstep, firlen, phaseOffset;
+ 
+     std::vector<REAL> buf;
+     std::vector<std::vector<REAL>> fircoef;
+-    size_t dpos = 0, ssize = 0, dsize = 0, buflast = 0;
++    size_t dpos = 0, ssize = 0, dsize = 0, buflast = 0, bufOrigin = 0;
+ 
+   public:
+-    FastPP(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, int64_t sfs_, int64_t lcmfs_, int64_t dfs_, const REAL *fircoef_, size_t firlen_) :
+-      inlet(in_), sfs(sfs_), lcmfs(lcmfs_), dfs(dfs_), sstep(lcmfs / sfs), dstep(lcmfs / dfs), firlen(firlen_) {
++    FastPP(std::shared_ptr<ssrc::StageOutlet<REAL>> in_, int64_t sfs_, int64_t lcmfs_, int64_t dfs_, const REAL *fircoef_, size_t firlen_, size_t phaseOffset_ = 0) :
++      inlet(in_), sfs(sfs_), lcmfs(lcmfs_), dfs(dfs_), sstep(lcmfs / sfs), dstep(lcmfs / dfs), firlen(firlen_), phaseOffset(phaseOffset_) {
+       fircoef.resize(sstep);
+       for(size_t i=0;i<sstep;i++) fircoef[i].resize((firlen + sstep - 1) / sstep);
+       for(size_t i=0;i<firlen;i++) fircoef[i % sstep][i / sstep] = fircoef_[firlen - 1 - i];
+@@ -48,12 +48,20 @@ namespace shibatch {
+ 	buflast += nRead;
+ 	memset(buf.data() + buflast, 0, (buf.size() - buflast) * sizeof(REAL));
+ 
+-	const size_t sorg = (dpos * dstep + sstep - 1) / sstep;
++	const size_t sorgPhase = phaseOffset + dpos * dstep;
++	const size_t sorg = (sorgPhase + sstep - 1) / sstep;
++	if (sorg > bufOrigin) {
++	  const size_t advance = sorg - bufOrigin;
++	  memmove(buf.data(), buf.data() + advance, (buf.size() - advance) * sizeof(REAL));
++	  buflast = buflast > advance ? buflast - advance : 0;
++	  bufOrigin = sorg;
++	}
+ 	const size_t bs = std::min(nSamples, N);
+ 
+ 	for(size_t i=0;i<bs && dpos < dsize;i++) {
+-	  const size_t spos = (dpos * dstep + sstep - 1) / sstep;
+-	  const size_t filterpos = spos * sstep - dpos * dstep;
++	  const size_t phase = phaseOffset + dpos * dstep;
++	  const size_t spos = (phase + sstep - 1) / sstep;
++	  const size_t filterpos = spos * sstep - phase;
+ 
+ 	  if ((firlen + sstep - 1) / sstep - 1 + (spos - sorg) >= buflast && !endReached) break;
+ 
+@@ -68,9 +76,14 @@ namespace shibatch {
+ 	  nSamples--;
+ 	}
+ 
+-	const size_t slast = (dpos * dstep + sstep - 1) / sstep;
+-	memmove(buf.data(), buf.data() + (slast - sorg), (buf.size() - (slast - sorg)) * sizeof(REAL));
+-	buflast -= slast - sorg;
++	const size_t slastPhase = phaseOffset + dpos * dstep;
++	const size_t slast = (slastPhase + sstep - 1) / sstep;
++	if (slast > bufOrigin) {
++	  const size_t advance = slast - bufOrigin;
++	  memmove(buf.data(), buf.data() + advance, (buf.size() - advance) * sizeof(REAL));
++	  buflast = buflast > advance ? buflast - advance : 0;
++	  bufOrigin = slast;
++	}
+       }
+ 
+       return nOut;
+diff --git a/src/libshibatchdsp/SRC.hpp b/src/libshibatchdsp/SRC.hpp
+index 148f4f59a50790f4aeb8edd1a44ed68c50df4e3f..445b4d0cb74ee84fea48ddf2340bdfd0857e6a63 100644
+--- a/src/libshibatchdsp/SRC.hpp
++++ b/src/libshibatchdsp/SRC.hpp
+@@ -4,6 +4,7 @@
+ #include <cstdint>
+ #include <string>
+ #include <algorithm>
++#include <limits>
+ 
+ #include "Kaiser.hpp"
+ #include "FastPP.hpp"
+@@ -28,6 +29,47 @@ namespace shibatch {
+       return x;
+     }
+ 
++    static uint64_t roundedFrameCount(uint64_t n, uint64_t sfs, uint64_t dfs) {
++      // Round n * dfs / sfs to the nearest destination frame, with exact
++      // half-frame ties rounded up. Split at source-frame boundaries so the
++      // multiplication involving stream length cannot overflow first.
++      const uint64_t whole = n / sfs;
++      const uint64_t remainder = n % sfs;
++      if (whole != 0 && dfs > std::numeric_limits<uint64_t>::max() / whole)
++	throw(std::overflow_error("SSRCStage output frame count overflow"));
++      const uint64_t base = whole * dfs;
++
++      if (remainder != 0 && dfs > std::numeric_limits<uint64_t>::max() / remainder)
++	throw(std::overflow_error("SSRCStage output frame remainder overflow"));
++      const uint64_t numerator = remainder * dfs;
++      const uint64_t quotient = numerator / sfs;
++      const uint64_t residual = numerator % sfs;
++      const uint64_t roundedRemainder = quotient + (residual >= (sfs + 1) / 2 ? 1 : 0);
++      if (roundedRemainder > std::numeric_limits<uint64_t>::max() - base)
++	throw(std::overflow_error("SSRCStage output frame count overflow"));
++      return base + roundedRemainder;
++    }
++
++    class CountingOutlet : public ssrc::StageOutlet<REAL> {
++      std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
++      uint64_t framesRead = 0;
++      bool endReached = false;
++    public:
++      CountingOutlet(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_) : inlet(inlet_) {}
++
++      bool atEnd() { return endReached || inlet->atEnd(); }
++
++      size_t read(REAL *out, size_t nSamples) {
++	size_t nRead = inlet->read(out, nSamples);
++	if (nRead == 0) endReached = true;
++	else framesRead += nRead;
++	return nRead;
++      }
++
++      uint64_t size() const { return framesRead; }
++      bool ended() const { return endReached; }
++    };
++
+     class Oversample : public ssrc::StageOutlet<REAL> {
+       std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
+       const int64_t sfs, dfs, m;
+@@ -120,13 +162,14 @@ namespace shibatch {
+       }
+     };
+ 
+-    std::shared_ptr<ssrc::StageOutlet<REAL>> inlet;
++    std::shared_ptr<CountingOutlet> inlet;
+     const int64_t sfs, dfs, fslcm, lfs, hfs;
+ 
+     const int64_t dftflen, mindftflen;
+     const double aa, guard, gain;
+     const bool minPhase, mt;
+-    double delay = 0;
++    uint64_t phaseOffset = 0, latencyFrames = 0, discardedFrames = 0, publishedFrames = 0;
++    std::vector<REAL> discardBuf;
+ 
+     int64_t osm, fsos;
+ 
+@@ -137,11 +180,23 @@ namespace shibatch {
+     std::shared_ptr<Oversample> oversample;
+     std::shared_ptr<Undersample> undersample;
+ 
++    size_t readRaw(REAL *out, size_t nSamples) {
++      if (dfs > sfs) {
++	return undersample->read(out, nSamples);
++      } else if (dfs < sfs) {
++	return ppf->read(out, nSamples);
++      } else {
++	size_t nr = inlet->read(out, nSamples);
++	for(size_t i=0;i<nr;i++) out[i] *= gain;
++	return nr;
++      }
++    }
++
+   public:
+     SSRCStage(std::shared_ptr<ssrc::StageOutlet<REAL>> inlet_, int64_t sfs_, int64_t dfs_,
+ 	      unsigned l2dftflen_ = 12, double aa_ = 96, double guard_ = 1, double gain_ = 1,
+ 	      bool minPhase_ = false, unsigned l2mindftflen_ = 0, bool mt_ = true) :
+-      inlet(inlet_), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
++      inlet(std::make_shared<CountingOutlet>(inlet_)), sfs(sfs_), dfs(dfs_), fslcm(sfs_ / gcd(sfs_, dfs_) * dfs_),
+       lfs(std::min(sfs_, dfs_)), hfs(std::max(sfs_, dfs_)),
+       dftflen(1LL << l2dftflen_), mindftflen(l2mindftflen_ == 0 ? 0 : (1LL << l2mindftflen_)),
+       aa(aa_), guard(guard_), gain(gain_), minPhase(minPhase_), mt(mt_) {
+@@ -198,8 +253,20 @@ namespace shibatch {
+ 	  ssrc::ObjectCache<std::vector<REAL>>::insert(keyDF, dftfv);
+ 	}
+ 
+-	delay = ((ppfv->size() * 0.5 - 1) / fslcm + (dftfv->size() * 0.5 - 1) / (hfs * osm)) * dfs;
+-
++	// FastPP evaluates its symmetric FIR by reading ahead, so its group
++	// delay advances the signal. The FFT FIR is causal and delays it. Keep
++	// the relationship in exact LCM-clock ticks, then use the polyphase
++	// origin to remove the fractional destination-frame part of the latency.
++	const uint64_t ppfCenter = (ppfv->size() - 1) / 2;
++	const uint64_t dftCenter = (dftfv->size() - 1) / 2;
++	const uint64_t dftTick = fslcm / fsos;
++	const uint64_t dstTick = fslcm / dfs;
++	const uint64_t delayTicks = dftCenter * dftTick - ppfCenter;
++
++	if (!minPhase) {
++	  phaseOffset = delayTicks % dstTick;
++	  latencyFrames = delayTicks / dstTick;
++	}
+ 	if (minPhase) {
+ 	  Minrceps minrceps(dftfv->size() * 8);
+ 
+@@ -221,12 +288,16 @@ namespace shibatch {
+ 	    dftfv = ssrc::ObjectCache<std::vector<REAL>>::at(keyDF);
+ 	  }
+ 
+-	  delay = 0;
++	  phaseOffset = 0;
++	  latencyFrames = 0;
+ 	}
++
++	if (latencyFrames != 0)
++	  discardBuf.resize(std::min<uint64_t>(65536, latencyFrames));
+       }
+ 
+       if (dfs > sfs) {
+-	ppf = std::make_shared<FastPP<REAL>>(inlet, sfs, fslcm, fsos, ppfv->data(), ppfv->size());
++	ppf = std::make_shared<FastPP<REAL>>(inlet, sfs, fslcm, fsos, ppfv->data(), ppfv->size(), phaseOffset);
+ 	if (mindftflen == 0) {
+ 	  dftf = std::make_shared<DFTFilter<REAL>>(ppf, dftfv->data(), dftfv->size());
+ 	  undersample = std::make_shared<Undersample>(dftf, fsos, dfs);
+@@ -241,40 +312,53 @@ namespace shibatch {
+ 	oversample = std::make_shared<Oversample>(inlet, sfs, fsos);
+ 	if (mindftflen == 0) {
+ 	  dftf = std::make_shared<DFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size());
+-	  ppf = std::make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
++	  ppf = std::make_shared<FastPP<REAL>>(dftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size(), phaseOffset);
+ 	} else if (!mt) {
+ 	  pdftf = std::make_shared<PartDFTFilter<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen);
+-	  ppf = std::make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
++	  ppf = std::make_shared<FastPP<REAL>>(pdftf, fsos, fslcm, dfs, ppfv->data(), ppfv->size(), phaseOffset);
+ 	} else {
+ 	  pdftfmt = std::make_shared<PartDFTFilterMT<REAL>>(oversample, dftfv->data(), dftfv->size(), mindftflen);
+-	  ppf = std::make_shared<FastPP<REAL>>(pdftfmt, fsos, fslcm, dfs, ppfv->data(), ppfv->size());
++	  ppf = std::make_shared<FastPP<REAL>>(pdftfmt, fsos, fslcm, dfs, ppfv->data(), ppfv->size(), phaseOffset);
+ 	}
+       }
+     }
+ 
+     bool atEnd() {
+-      if (dfs > sfs) {
+-	return undersample->atEnd();
+-      } else if (dfs < sfs) {
+-	return ppf->atEnd();
+-      } else {
+-	return inlet->atEnd();
+-      }
++      if (!inlet->ended()) return false;
++      return publishedFrames >= roundedFrameCount(inlet->size(), sfs, dfs);
+     }
+ 
+     size_t read(REAL *out, size_t nSamples) {
+-      if (dfs > sfs) {
+-	return undersample->read(out, nSamples);
+-      } else if (dfs < sfs) {
+-	return ppf->read(out, nSamples);
+-      } else {
+-	size_t nr = inlet->read(out, nSamples);
+-	for(size_t i=0;i<nr;i++) out[i] *= gain;
+-	return nr;
++      while(discardedFrames < latencyFrames) {
++	const size_t want = std::min<uint64_t>(discardBuf.size(), latencyFrames - discardedFrames);
++	const size_t nRead = readRaw(discardBuf.data(), want);
++	if (nRead == 0) return 0;
++	discardedFrames += nRead;
+       }
++
++      if (inlet->ended()) {
++	const uint64_t targetFrames = roundedFrameCount(inlet->size(), sfs, dfs);
++	if (publishedFrames >= targetFrames) return 0;
++	nSamples = std::min<uint64_t>(nSamples, targetFrames - publishedFrames);
++      }
++
++      size_t nRead = readRaw(out, nSamples);
++
++      // EOF can become known while readRaw() is servicing this request. By
++      // then the filters may have produced their convolution tail, so clamp
++      // the final read to the finite destination timeline before publishing.
++      if (inlet->ended()) {
++	const uint64_t targetFrames = roundedFrameCount(inlet->size(), sfs, dfs);
++	const uint64_t remaining = targetFrames > publishedFrames ? targetFrames - publishedFrames : 0;
++	nRead = std::min<uint64_t>(nRead, remaining);
++      }
++
++      publishedFrames += nRead;
++      return nRead;
+     }
+ 
+-    double getDelay() { return delay; }
++    // The finite-stream publication layer compensates resampler latency.
++    double getDelay() { return 0; }
+   };
+ }
+ #endif // #ifndef SRC_HPP
+diff --git a/src/libshibatchdsp/xdr_wav.h b/src/libshibatchdsp/xdr_wav.h
+index fd7967e67e9aabad706c7c7c3447e796c3516904..9a8d5f5881ef7571899d1700d6135427baef21e8 100644
+--- a/src/libshibatchdsp/xdr_wav.h
++++ b/src/libshibatchdsp/xdr_wav.h
+@@ -912,6 +912,9 @@ typedef struct
+     /* The position in the stream of the first data byte of the data chunk. This is used for seeking. */
+     drwav_uint64 dataChunkDataPos;
+ 
++    /* The position of the floating-point "fact" frame count, or 0 when no fact chunk was written. */
++    drwav_uint64 factChunkDataPos;
++
+     /* The number of bytes remaining in the data chunk. */
+     drwav_uint64 bytesRemaining;
+ 
+@@ -4431,9 +4434,9 @@ DRWAV_PRIVATE size_t drwav__write_or_count_metadata(drwav* pWav, drwav_metadata*
+     return bytesWritten;
+ }
+ 
+-DRWAV_PRIVATE drwav_uint32 drwav__riff_chunk_size_riff(drwav_uint64 dataChunkSize, drwav_metadata* pMetadata, drwav_uint32 metadataCount)
++DRWAV_PRIVATE drwav_uint32 drwav__riff_chunk_size_riff(drwav_uint64 dataChunkSize, drwav_metadata* pMetadata, drwav_uint32 metadataCount, drwav_uint64 extraChunkSize)
+ {
+-    drwav_uint64 chunkSize = 4 + 24 + (drwav_uint64)drwav__write_or_count_metadata(NULL, pMetadata, metadataCount) + 8 + dataChunkSize + drwav__chunk_padding_size_riff(dataChunkSize); /* 4 = "WAVE". 24 = "fmt " chunk. 8 = "data" + u32 data size. */
++    drwav_uint64 chunkSize = 4 + 24 + extraChunkSize + (drwav_uint64)drwav__write_or_count_metadata(NULL, pMetadata, metadataCount) + 8 + dataChunkSize + drwav__chunk_padding_size_riff(dataChunkSize); /* 4 = "WAVE". 24 = "fmt " chunk. 8 = "data" + u32 data size. */
+     if (chunkSize > 0xFFFFFFFFUL) {
+         chunkSize = 0xFFFFFFFFUL;
+     }
+@@ -4450,11 +4453,11 @@ DRWAV_PRIVATE drwav_uint32 drwav__data_chunk_size_riff(drwav_uint64 dataChunkSiz
+     }
+ }
+ 
+-DRWAV_PRIVATE drwav_uint64 drwav__riff_chunk_size_w64(drwav_uint64 dataChunkSize)
++DRWAV_PRIVATE drwav_uint64 drwav__riff_chunk_size_w64(drwav_uint64 dataChunkSize, drwav_uint64 extraChunkSize)
+ {
+     drwav_uint64 dataSubchunkPaddingSize = drwav__chunk_padding_size_w64(dataChunkSize);
+ 
+-    return 80 + 24 + dataChunkSize + dataSubchunkPaddingSize;   /* +24 because W64 includes the size of the GUID and size fields. */
++    return 80 + extraChunkSize + 24 + dataChunkSize + dataSubchunkPaddingSize;   /* +24 because W64 includes the size of the GUID and size fields. */
+ }
+ 
+ DRWAV_PRIVATE drwav_uint64 drwav__data_chunk_size_w64(drwav_uint64 dataChunkSize)
+@@ -4462,10 +4465,13 @@ DRWAV_PRIVATE drwav_uint64 drwav__data_chunk_size_w64(drwav_uint64 dataChunkSize
+     return 24 + dataChunkSize;        /* +24 because W64 includes the size of the GUID and size fields. */
+ }
+ 
+-DRWAV_PRIVATE drwav_uint64 drwav__riff_chunk_size_rf64(drwav_uint64 dataChunkSize, drwav_metadata *metadata, drwav_uint32 numMetadata)
++DRWAV_PRIVATE drwav_uint64 drwav__riff_chunk_size_rf64(drwav_uint64 dataChunkSize, drwav_metadata *metadata, drwav_uint32 numMetadata, drwav_uint64 extraChunkSize, drwav_bool32 clampToLegacy32Bit)
+ {
+-    drwav_uint64 chunkSize = 4 + 36 + 24 + (drwav_uint64)drwav__write_or_count_metadata(NULL, metadata, numMetadata) + 8 + dataChunkSize + drwav__chunk_padding_size_riff(dataChunkSize); /* 4 = "WAVE". 36 = "ds64" chunk. 24 = "fmt " chunk. 8 = "data" + u32 data size. */
+-    if (chunkSize > 0xFFFFFFFFUL) {
++    drwav_uint64 chunkSize = 4 + 36 + 24 + extraChunkSize + (drwav_uint64)drwav__write_or_count_metadata(NULL, metadata, numMetadata) + 8 + dataChunkSize + drwav__chunk_padding_size_riff(dataChunkSize); /* 4 = "WAVE". 36 = "ds64" chunk. 24 = "fmt " chunk. 8 = "data" + u32 data size. */
++
++    /* Preserve the fork's legacy integer-PCM behavior where requested. Floating RF64
++       needs the true 64-bit ds64 RIFF size so its fact/ds64 metadata remain coherent. */
++    if (clampToLegacy32Bit && chunkSize > 0xFFFFFFFFUL) {
+         chunkSize = 0xFFFFFFFFUL;
+     }
+ 
+@@ -4528,8 +4534,18 @@ DRWAV_PRIVATE drwav_bool32 drwav_init_write__internal(drwav* pWav, const drwav_d
+ 
+     size_t runningPos = 0;
+     drwav_uint64 initialDataChunkSize = 0;
++    drwav_uint64 initialPCMFrameCount = 0;
++    drwav_uint64 factChunkSize = 0;
++    drwav_uint64 fmtExtraChunkSize = 0;
++    drwav_bool32 isIEEEFloat;
+     drwav_uint64 chunkSizeFMT;
+ 
++    isIEEEFloat = (pWav->fmt.formatTag == DR_WAVE_FORMAT_IEEE_FLOAT) ||
++                  (pWav->hasExtraData && pWav->extraData[6] == 0x03 && pWav->extraData[7] == 0x00 &&
++                   pWav->extraData[8] == 0x00 && pWav->extraData[9] == 0x00);
++    factChunkSize = isIEEEFloat ? (pFormat->container == drwav_container_w64 ? 32 : 12) : 0;
++    fmtExtraChunkSize = pWav->hasExtraData ? 24 : 0;
++
+     /*
+     The initial values for the "RIFF" and "data" chunks depends on whether or not we are initializing in sequential mode or not. In
+     sequential mode we set this to its final values straight away since they can be calculated from the total sample count. In non-
+@@ -4543,23 +4559,25 @@ DRWAV_PRIVATE drwav_bool32 drwav_init_write__internal(drwav* pWav, const drwav_d
+         so for the sake of simplicity I'm not doing any validation for that.
+         */
+         if (pFormat->container == drwav_container_riff) {
+-            if (initialDataChunkSize > (0xFFFFFFFFUL - 36)) {
+-                return DRWAV_FALSE; /* Not enough room to store every sample. */
++            if (initialDataChunkSize > (0xFFFFFFFFUL - 36 - fmtExtraChunkSize - factChunkSize)) {
++                return DRWAV_FALSE; /* Not enough room to store every sample and required fact metadata. */
+             }
+         }
+     }
+ 
+     pWav->dataChunkDataSizeTargetWrite = initialDataChunkSize;
++    initialPCMFrameCount = pWav->fmt.blockAlign != 0 ? initialDataChunkSize / pWav->fmt.blockAlign : 0;
+ 
+ 
+     /* "RIFF" chunk. */
+     if (pFormat->container == drwav_container_riff) {
+-        drwav_uint32 chunkSizeRIFF = 36 + (drwav_uint32)initialDataChunkSize;   /* +36 = "WAVE" + [sizeof "fmt " chunk] + [data chunk header] */
++        drwav_uint32 chunkSizeRIFF = 36 + (drwav_uint32)fmtExtraChunkSize + (drwav_uint32)factChunkSize + (drwav_uint32)initialDataChunkSize;   /* +36 = "WAVE" + [base "fmt " chunk] + [data chunk header] */
+         runningPos += drwav__write(pWav, "RIFF", 4);
+         runningPos += drwav__write_u32ne_to_le(pWav, chunkSizeRIFF);
+         runningPos += drwav__write(pWav, "WAVE", 4);
+     } else if (pFormat->container == drwav_container_w64) {
+-        drwav_uint64 chunkSizeRIFF = 80 + 24 + initialDataChunkSize;            /* +24 because W64 includes the size of the GUID and size fields. */
++        drwav_uint64 chunkSizeRIFF = 80 + fmtExtraChunkSize + factChunkSize + 24 + initialDataChunkSize +
++            (isIEEEFloat ? drwav__chunk_padding_size_w64(initialDataChunkSize) : 0); /* Preserve integer sequential behavior; float must account for W64 data padding. */
+         runningPos += drwav__write(pWav, drwavGUID_W64_RIFF, 16);
+         runningPos += drwav__write_u64ne_to_le(pWav, chunkSizeRIFF);
+         runningPos += drwav__write(pWav, drwavGUID_W64_WAVE, 16);
+@@ -4575,13 +4593,15 @@ DRWAV_PRIVATE drwav_bool32 drwav_init_write__internal(drwav* pWav, const drwav_d
+     /* "ds64" chunk (RF64 only). */
+     if (pFormat->container == drwav_container_rf64) {
+         drwav_uint32 initialds64ChunkSize = 28;                                 /* 28 = [Size of RIFF (8 bytes)] + [Size of DATA (8 bytes)] + [Sample Count (8 bytes)] + [Table Length (4 bytes)]. Table length always set to 0. */
+-        drwav_uint64 initialRiffChunkSize = 8 + initialds64ChunkSize + initialDataChunkSize;    /* +8 for the ds64 header. */
++        drwav_uint64 initialRiffChunkSize = isIEEEFloat
++            ? 4 + 36 + 24 + fmtExtraChunkSize + factChunkSize + 8 + initialDataChunkSize + drwav__chunk_padding_size_riff(initialDataChunkSize)
++            : 8 + initialds64ChunkSize + initialDataChunkSize;
+ 
+         runningPos += drwav__write(pWav, "ds64", 4);
+         runningPos += drwav__write_u32ne_to_le(pWav, initialds64ChunkSize);     /* Size of ds64. */
+         runningPos += drwav__write_u64ne_to_le(pWav, initialRiffChunkSize);     /* Size of RIFF. Set to true value at the end. */
+         runningPos += drwav__write_u64ne_to_le(pWav, initialDataChunkSize);     /* Size of DATA. Set to true value at the end. */
+-        runningPos += drwav__write_u64ne_to_le(pWav, totalSampleCount);         /* Sample count. */
++        runningPos += drwav__write_u64ne_to_le(pWav, isIEEEFloat ? initialPCMFrameCount : totalSampleCount); /* Preserve integer behavior; float uses PCM frames. */
+         runningPos += drwav__write_u32ne_to_le(pWav, 0);                        /* Table length. Always set to zero in our case since we're not doing any other chunks than "DATA". */
+     }
+ 
+@@ -4613,7 +4633,23 @@ DRWAV_PRIVATE drwav_bool32 drwav_init_write__internal(drwav* pWav, const drwav_d
+       DRWAV_COPY_MEMORY((void *)&pWav->fmt.validBitsPerSample, pWav->extraData, 22);
+     }
+ 
+-    /* TODO: is a 'fact' chunk required for DR_WAVE_FORMAT_IEEE_FLOAT? */
++    /* IEEE floating-point WAVE-family output carries an authoritative frame count in "fact". */
++    if (isIEEEFloat) {
++        if (pFormat->container == drwav_container_w64) {
++            runningPos += drwav__write(pWav, drwavGUID_W64_FACT, 16);
++            runningPos += drwav__write_u64ne_to_le(pWav, 32); /* 24-byte W64 chunk header + 8-byte frame count. */
++            pWav->factChunkDataPos = runningPos;
++            runningPos += drwav__write_u64ne_to_le(pWav, initialPCMFrameCount);
++        } else {
++            drwav_uint32 factFrameCount = pFormat->container == drwav_container_rf64
++                ? 0xFFFFFFFFUL
++                : (initialPCMFrameCount > 0xFFFFFFFFULL ? 0xFFFFFFFFUL : (drwav_uint32)initialPCMFrameCount);
++            runningPos += drwav__write(pWav, "fact", 4);
++            runningPos += drwav__write_u32ne_to_le(pWav, 4);
++            pWav->factChunkDataPos = runningPos;
++            runningPos += drwav__write_u32ne_to_le(pWav, factFrameCount);
++        }
++    }
+ 
+     if (!pWav->isSequentialWrite && pWav->pMetadata != NULL && pWav->metadataCount > 0 && (pFormat->container == drwav_container_riff || pFormat->container == drwav_container_rf64)) {
+         runningPos += drwav__write_or_count_metadata(pWav, pWav->pMetadata, pWav->metadataCount);
+@@ -4721,13 +4757,13 @@ DRWAV_API drwav_uint64 drwav_target_write_size_bytes(const drwav_data_format* pF
+     drwav_uint64 fileSizeBytes = 0;
+ 
+     if (pFormat->container == drwav_container_riff) {
+-        riffChunkSizeBytes = drwav__riff_chunk_size_riff(targetDataSizeBytes, pMetadata, metadataCount);
++        riffChunkSizeBytes = drwav__riff_chunk_size_riff(targetDataSizeBytes, pMetadata, metadataCount, pFormat->format == DR_WAVE_FORMAT_IEEE_FLOAT ? 12 : 0);
+         fileSizeBytes = (8 + riffChunkSizeBytes);   /* +8 because WAV doesn't include the size of the ChunkID and ChunkSize fields. */
+     } else if (pFormat->container == drwav_container_w64) {
+-        riffChunkSizeBytes = drwav__riff_chunk_size_w64(targetDataSizeBytes);
++        riffChunkSizeBytes = drwav__riff_chunk_size_w64(targetDataSizeBytes, pFormat->format == DR_WAVE_FORMAT_IEEE_FLOAT ? 32 : 0);
+         fileSizeBytes = riffChunkSizeBytes;
+     } else if (pFormat->container == drwav_container_rf64) {
+-        riffChunkSizeBytes = drwav__riff_chunk_size_rf64(targetDataSizeBytes, pMetadata, metadataCount);
++        riffChunkSizeBytes = drwav__riff_chunk_size_rf64(targetDataSizeBytes, pMetadata, metadataCount, pFormat->format == DR_WAVE_FORMAT_IEEE_FLOAT ? 12 : 0, pFormat->format != DR_WAVE_FORMAT_IEEE_FLOAT);
+         fileSizeBytes = (8 + riffChunkSizeBytes);   /* +8 because WAV doesn't include the size of the ChunkID and ChunkSize fields. */
+     }
+ 
+@@ -5773,7 +5809,7 @@ DRWAV_API drwav_result drwav_uninit(drwav* pWav)
+             if (pWav->container == drwav_container_riff) {
+                 /* The "RIFF" chunk size. */
+                 if (pWav->onSeek(pWav->pUserData, 4, DRWAV_SEEK_SET)) {
+-                    drwav_uint32 riffChunkSize = drwav__riff_chunk_size_riff(pWav->dataChunkDataSize, pWav->pMetadata, pWav->metadataCount);
++                    drwav_uint32 riffChunkSize = drwav__riff_chunk_size_riff(pWav->dataChunkDataSize, pWav->pMetadata, pWav->metadataCount, (pWav->hasExtraData ? 24 : 0) + (pWav->factChunkDataPos != 0 ? 12 : 0));
+                     drwav__write_u32ne_to_le(pWav, riffChunkSize);
+                 }
+ 
+@@ -5785,7 +5821,7 @@ DRWAV_API drwav_result drwav_uninit(drwav* pWav)
+             } else if (pWav->container == drwav_container_w64) {
+                 /* The "RIFF" chunk size. */
+                 if (pWav->onSeek(pWav->pUserData, 16, DRWAV_SEEK_SET)) {
+-                    drwav_uint64 riffChunkSize = drwav__riff_chunk_size_w64(pWav->dataChunkDataSize);
++                    drwav_uint64 riffChunkSize = drwav__riff_chunk_size_w64(pWav->dataChunkDataSize, (pWav->hasExtraData ? 24 : 0) + (pWav->factChunkDataPos != 0 ? 32 : 0));
+                     drwav__write_u64ne_to_le(pWav, riffChunkSize);
+                 }
+ 
+@@ -5800,7 +5836,7 @@ DRWAV_API drwav_result drwav_uninit(drwav* pWav)
+ 
+                 /* The "RIFF" chunk size. */
+                 if (pWav->onSeek(pWav->pUserData, ds64BodyPos + 0, DRWAV_SEEK_SET)) {
+-                    drwav_uint64 riffChunkSize = drwav__riff_chunk_size_rf64(pWav->dataChunkDataSize, pWav->pMetadata, pWav->metadataCount);
++                    drwav_uint64 riffChunkSize = drwav__riff_chunk_size_rf64(pWav->dataChunkDataSize, pWav->pMetadata, pWav->metadataCount, (pWav->hasExtraData ? 24 : 0) + (pWav->factChunkDataPos != 0 ? 12 : 0), pWav->factChunkDataPos == 0);
+                     drwav__write_u64ne_to_le(pWav, riffChunkSize);
+                 }
+ 
+@@ -5809,6 +5845,24 @@ DRWAV_API drwav_result drwav_uninit(drwav* pWav)
+                     drwav_uint64 dataChunkSize = drwav__data_chunk_size_rf64(pWav->dataChunkDataSize);
+                     drwav__write_u64ne_to_le(pWav, dataChunkSize);
+                 }
++
++                /* The 64-bit sampleCount replaces the 32-bit value in "fact" when needed. */
++                if (pWav->factChunkDataPos != 0 && pWav->fmt.blockAlign != 0 && pWav->onSeek(pWav->pUserData, ds64BodyPos + 16, DRWAV_SEEK_SET)) {
++                    drwav_uint64 frameCount = pWav->dataChunkDataSize / pWav->fmt.blockAlign;
++                    drwav__write_u64ne_to_le(pWav, frameCount);
++                }
++            }
++
++            if (pWav->factChunkDataPos != 0 && pWav->fmt.blockAlign != 0 && pWav->onSeek(pWav->pUserData, (int)pWav->factChunkDataPos, DRWAV_SEEK_SET)) {
++                drwav_uint64 frameCount = pWav->dataChunkDataSize / pWav->fmt.blockAlign;
++                if (pWav->container == drwav_container_w64) {
++                    drwav__write_u64ne_to_le(pWav, frameCount);
++                } else {
++                    drwav_uint32 factFrameCount = pWav->container == drwav_container_rf64
++                        ? 0xFFFFFFFFUL
++                        : (frameCount > 0xFFFFFFFFULL ? 0xFFFFFFFFUL : (drwav_uint32)frameCount);
++                    drwav__write_u32ne_to_le(pWav, factFrameCount);
++                }
+             }
+         }
+ 
+diff --git a/src/tester/CMakeLists.txt b/src/tester/CMakeLists.txt
+index 39a97c338748396192c7c8b331e6bf0c48689c66..a10e85f35d9810688d3d78d6c9f156e8996e3569 100644
+--- a/src/tester/CMakeLists.txt
++++ b/src/tester/CMakeLists.txt
+@@ -13,6 +13,9 @@ add_executable(cmpwav cmpwav.cpp)
+ target_link_libraries(cmpwav shibatchdsp ${SLEEF_LIBRARIES})
+ target_include_directories(cmpwav PRIVATE "${PROJECT_SOURCE_DIR}/src/libshibatchdsp")
+ 
++add_executable(test_finite_stream test_finite_stream.cpp)
++target_link_libraries(test_finite_stream shibatchdsp ${SLEEF_LIBRARIES})
++
+ set(TMP_DIR_PATH ${EXECUTABLE_OUTPUT_PATH})
+ 
+ add_custom_command(
+@@ -41,6 +44,8 @@ add_custom_target(
+ 
+ add_dependencies(test_cppapi generate_test_data)
+ 
++add_test(NAME test_finite_stream_contract COMMAND $<TARGET_FILE:test_finite_stream> ${TMP_DIR_PATH})
++
+ add_test(NAME test_api COMMAND "${CMAKE_COMMAND}"
+   -D TARGET_FILE_ssrc=$<TARGET_FILE:ssrc>
+   -D TARGET_FILE_scsa=$<TARGET_FILE:scsa>
+@@ -53,27 +58,35 @@ add_test(NAME test_api COMMAND "${CMAKE_COMMAND}"
+ )
+ 
+ foreach(PROFILE standard long high insane)
++  set(SIN10K_END_44100_48000 460000)
++  set(SIN10K_END_48000_44100 420000)
++  if (PROFILE STREQUAL "insane")
++    # Keep steady-state spectral probes outside the finite-stream boundary
++    # response of Insane's much longer linear-phase filter.
++    set(SIN10K_END_44100_48000 430000)
++    set(SIN10K_END_48000_44100 390000)
++  endif()
+   add_test(NAME test_sin10k_44100_48000_${PROFILE} COMMAND "${CMAKE_COMMAND}"
+     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--st\;--profile\;${PROFILE}\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.wav
+-    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.wav\;100000\;460000\;10000
++    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.wav\;100000\;${SIN10K_END_44100_48000}\;10000
+     -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+   )
+ 
+   add_test(NAME test_sin10k_48000_44100_${PROFILE} COMMAND "${CMAKE_COMMAND}"
+     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.wav
+-    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.wav\;100000\;420000\;10000
++    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.wav\;100000\;${SIN10K_END_48000_44100}\;10000
+     -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+   )
+ 
+   add_test(NAME test_sin10k_44100_48000_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;48000\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.44100.wav\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.partConv.wav
+-    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.partConv.wav\;100000\;460000\;10000
++    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.44100.48000.${PROFILE}.partConv.wav\;100000\;${SIN10K_END_44100_48000}\;10000
+     -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+   )
+ 
+   add_test(NAME test_sin10k_48000_44100_${PROFILE}_partConv COMMAND "${CMAKE_COMMAND}"
+     -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--st\;--profile\;${PROFILE}\;--partConv\;8\;--rate\;44100\;--bits\;-64\;${TMP_DIR_PATH}/sin10k.48000.wav\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.partConv.wav
+-    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.partConv.wav\;100000\;420000\;10000
++    -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/10kHz-140dB.scsa\;${TMP_DIR_PATH}/sin10k.48000.44100.${PROFILE}.partConv.wav\;100000\;${SIN10K_END_48000_44100}\;10000
+     -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+   )
+ 
+@@ -265,9 +278,14 @@ foreach(FS 44100 48000)
+   endforeach()
+ endforeach()
+ 
++# The generated impulse's first nonzero source frame is 49,999. After
++# finite-stream alignment its nearest destination frame is 45,937 for
++# 48 kHz -> 44.1 kHz and 54,421 for 44.1 kHz -> 48 kHz. The old Insane
++# probe positions included serialized filter latency and fall outside the
++# corrected finite files.
+ add_test(NAME test_impulse_48000_44100_insane COMMAND "${CMAKE_COMMAND}"
+   -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;insane\;--bits\;-64\;--rate\;44100\;${TMP_DIR_PATH}/impulse.48000.wav\;${TMP_DIR_PATH}/impulse.insane.48000.44100.wav
+-  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.48000.44100.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.insane.48000.44100.wav\;90000
++  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.48000.44100.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.insane.48000.44100.wav\;45937
+   -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+ )
+ 
+@@ -291,7 +309,7 @@ add_test(NAME test_impulse_48000_44100_standard_minPhase COMMAND "${CMAKE_COMMAN
+ 
+ add_test(NAME test_impulse_44100_48000_insane COMMAND "${CMAKE_COMMAND}"
+   -D COMMAND0_TO_EXECUTE=$<TARGET_FILE:ssrc>\;--profile\;insane\;--bits\;-64\;--rate\;48000\;${TMP_DIR_PATH}/impulse.44100.wav\;${TMP_DIR_PATH}/impulse.insane.44100.48000.wav
+-  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.44100.48000.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.insane.44100.48000.wav\;94000
++  -D COMMAND1_TO_EXECUTE=$<TARGET_FILE:scsa>\;--check\;${CMAKE_CURRENT_LIST_DIR}/impulse.44100.48000.scsa\;--log2dftlen\;16\;${TMP_DIR_PATH}/impulse.insane.44100.48000.wav\;54421
+   -P ${CMAKE_CURRENT_LIST_DIR}/execute_commands.cmake
+ )
+ 
+diff --git a/src/tester/test_finite_stream.cpp b/src/tester/test_finite_stream.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d7ded435bc08fc50875981522d210fbf51fb03c
+--- /dev/null
++++ b/src/tester/test_finite_stream.cpp
+@@ -0,0 +1,431 @@
++#include <algorithm>
++#include <array>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <filesystem>
++#include <fstream>
++#include <iostream>
++#include <memory>
++#include <numeric>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++#include "shibatch/ssrc.hpp"
++
++using namespace std;
++using namespace ssrc;
++
++namespace {
++
++void require(bool condition, const string &message) {
++  if (!condition) throw runtime_error(message);
++}
++
++uint16_t u16le(const vector<uint8_t> &b, size_t p) {
++  require(p + 2 <= b.size(), "truncated u16");
++  return uint16_t(b[p]) | (uint16_t(b[p + 1]) << 8);
++}
++
++uint32_t u32le(const vector<uint8_t> &b, size_t p) {
++  require(p + 4 <= b.size(), "truncated u32");
++  uint32_t v = 0;
++  for(unsigned i=0;i<4;i++) v |= uint32_t(b[p + i]) << (i * 8);
++  return v;
++}
++
++uint64_t u64le(const vector<uint8_t> &b, size_t p) {
++  require(p + 8 <= b.size(), "truncated u64");
++  uint64_t v = 0;
++  for(unsigned i=0;i<8;i++) v |= uint64_t(b[p + i]) << (i * 8);
++  return v;
++}
++
++vector<uint8_t> readFile(const filesystem::path &path) {
++  ifstream f(path, ios::binary);
++  require(f.good(), "cannot open " + path.string());
++  f.seekg(0, ios::end);
++  const auto n = f.tellg();
++  require(n >= 0, "cannot size " + path.string());
++  f.seekg(0, ios::beg);
++  vector<uint8_t> b(static_cast<size_t>(n));
++  if (!b.empty()) f.read(reinterpret_cast<char *>(b.data()), b.size());
++  require(f.good() || f.eof(), "cannot read " + path.string());
++  return b;
++}
++
++struct ParsedWave {
++  enum class Kind { RIFF, RF64, W64 } kind;
++  uint16_t formatTag = 0, subFormatTag = 0, channels = 0, blockAlign = 0, bitsPerSample = 0;
++  uint32_t sampleRate = 0;
++  uint64_t dataBytes = 0;
++  bool hasFact = false;
++  uint64_t factFrames = 0;
++  size_t factBodyBytes = 0;
++  bool hasDs64 = false;
++  uint64_t ds64RiffSize = 0, ds64DataSize = 0, ds64SampleCount = 0;
++};
++
++constexpr array<uint8_t,16> W64_RIFF = {0x72,0x69,0x66,0x66,0x2e,0x91,0xcf,0x11,0xa5,0xd6,0x28,0xdb,0x04,0xc1,0x00,0x00};
++constexpr array<uint8_t,16> W64_WAVE = {0x77,0x61,0x76,0x65,0xf3,0xac,0xd3,0x11,0x8c,0xd1,0x00,0xc0,0x4f,0x8e,0xdb,0x8a};
++constexpr array<uint8_t,16> W64_FMT  = {0x66,0x6d,0x74,0x20,0xf3,0xac,0xd3,0x11,0x8c,0xd1,0x00,0xc0,0x4f,0x8e,0xdb,0x8a};
++constexpr array<uint8_t,16> W64_FACT = {0x66,0x61,0x63,0x74,0xf3,0xac,0xd3,0x11,0x8c,0xd1,0x00,0xc0,0x4f,0x8e,0xdb,0x8a};
++constexpr array<uint8_t,16> W64_DATA = {0x64,0x61,0x74,0x61,0xf3,0xac,0xd3,0x11,0x8c,0xd1,0x00,0xc0,0x4f,0x8e,0xdb,0x8a};
++
++bool guidAt(const vector<uint8_t> &b, size_t p, const array<uint8_t,16> &g) {
++  return p + g.size() <= b.size() && equal(g.begin(), g.end(), b.begin() + p);
++}
++
++ParsedWave parseWave(const filesystem::path &path) {
++  const vector<uint8_t> b = readFile(path);
++  ParsedWave r;
++
++  if (guidAt(b, 0, W64_RIFF)) {
++    r.kind = ParsedWave::Kind::W64;
++    require(b.size() >= 40 && guidAt(b, 24, W64_WAVE), "invalid Wave64 root");
++    require(u64le(b, 16) == b.size(), "Wave64 root size mismatch");
++
++    size_t pos = 40;
++    bool gotFmt = false, gotData = false;
++    while(pos + 24 <= b.size()) {
++      require((pos & 7) == 0, "Wave64 chunk is not 8-byte aligned");
++      const uint64_t chunkSize = u64le(b, pos + 16);
++      require(chunkSize >= 24 && chunkSize <= b.size() - pos, "invalid Wave64 chunk size");
++      const size_t body = static_cast<size_t>(chunkSize - 24);
++      const size_t bodyPos = pos + 24;
++
++      if (guidAt(b, pos, W64_FMT)) {
++        require(body >= 16, "short Wave64 fmt");
++        r.formatTag = u16le(b, bodyPos);
++        r.channels = u16le(b, bodyPos + 2);
++        r.sampleRate = u32le(b, bodyPos + 4);
++        r.blockAlign = u16le(b, bodyPos + 12);
++        r.bitsPerSample = u16le(b, bodyPos + 14);
++        if (r.formatTag == WavFormat::EXTENSIBLE) {
++          require(body >= 40 && u16le(b, bodyPos + 16) >= 22, "short extensible fmt");
++          r.subFormatTag = u16le(b, bodyPos + 24);
++        }
++        gotFmt = true;
++      } else if (guidAt(b, pos, W64_FACT)) {
++        require(body == 8, "Wave64 fact body must be exactly eight bytes");
++        r.hasFact = true;
++        r.factBodyBytes = body;
++        r.factFrames = u64le(b, bodyPos);
++      } else if (guidAt(b, pos, W64_DATA)) {
++        r.dataBytes = body;
++        gotData = true;
++      }
++
++      const uint64_t padded = (chunkSize + 7) & ~uint64_t(7);
++      require(padded <= b.size() - pos, "Wave64 padded chunk exceeds file");
++      pos += static_cast<size_t>(padded);
++    }
++    require(pos == b.size(), "Wave64 trailing bytes");
++    require(gotFmt && gotData, "Wave64 missing fmt or data");
++    return r;
++  }
++
++  require(b.size() >= 12, "short RIFF/RF64 file");
++  const bool rf64 = memcmp(b.data(), "RF64", 4) == 0;
++  require(rf64 || memcmp(b.data(), "RIFF", 4) == 0, "unknown wave container");
++  require(memcmp(b.data() + 8, "WAVE", 4) == 0, "missing WAVE form type");
++  r.kind = rf64 ? ParsedWave::Kind::RF64 : ParsedWave::Kind::RIFF;
++  if (rf64) require(u32le(b, 4) == 0xffffffffU, "RF64 root size sentinel missing");
++  else require(u32le(b, 4) == b.size() - 8, "RIFF root size mismatch");
++
++  size_t pos = 12;
++  bool gotFmt = false, gotData = false;
++  while(pos + 8 <= b.size()) {
++    const string id(reinterpret_cast<const char *>(b.data() + pos), 4);
++    const uint32_t size32 = u32le(b, pos + 4);
++    const size_t bodyPos = pos + 8;
++    uint64_t body = size32;
++    if (rf64 && id == "data" && size32 == 0xffffffffU) {
++      require(r.hasDs64, "RF64 data precedes ds64");
++      body = r.ds64DataSize;
++    }
++    require(body <= b.size() - bodyPos, "chunk exceeds file");
++
++    if (id == "ds64") {
++      require(rf64 && body >= 28, "invalid ds64");
++      r.hasDs64 = true;
++      r.ds64RiffSize = u64le(b, bodyPos);
++      r.ds64DataSize = u64le(b, bodyPos + 8);
++      r.ds64SampleCount = u64le(b, bodyPos + 16);
++      require(u32le(b, bodyPos + 24) == 0, "unexpected RF64 ds64 table");
++    } else if (id == "fmt ") {
++      require(body >= 16, "short fmt");
++      r.formatTag = u16le(b, bodyPos);
++      r.channels = u16le(b, bodyPos + 2);
++      r.sampleRate = u32le(b, bodyPos + 4);
++      r.blockAlign = u16le(b, bodyPos + 12);
++      r.bitsPerSample = u16le(b, bodyPos + 14);
++      if (r.formatTag == WavFormat::EXTENSIBLE) {
++        require(body >= 40 && u16le(b, bodyPos + 16) >= 22, "short extensible fmt");
++        r.subFormatTag = u16le(b, bodyPos + 24);
++      }
++      gotFmt = true;
++    } else if (id == "fact") {
++      require(body == 4, "RIFF/RF64 fact body must be four bytes");
++      r.hasFact = true;
++      r.factBodyBytes = static_cast<size_t>(body);
++      r.factFrames = u32le(b, bodyPos);
++    } else if (id == "data") {
++      r.dataBytes = body;
++      gotData = true;
++    }
++
++    const uint64_t paddedBody = body + (body & 1);
++    require(paddedBody <= b.size() - bodyPos, "padded chunk exceeds file");
++    pos = bodyPos + static_cast<size_t>(paddedBody);
++  }
++  require(pos == b.size(), "RIFF/RF64 trailing bytes");
++  require(gotFmt && gotData, "RIFF/RF64 missing fmt or data");
++  if (rf64) {
++    require(r.hasDs64, "RF64 missing ds64");
++    require(r.ds64RiffSize == b.size() - 8, "RF64 ds64 RIFF size mismatch");
++    require(r.ds64DataSize == r.dataBytes, "RF64 ds64 data size mismatch");
++  }
++  return r;
++}
++
++template<typename T>
++class VectorOutlet : public StageOutlet<T> {
++  vector<T> data;
++  size_t pos = 0;
++public:
++  explicit VectorOutlet(vector<T> data_) : data(std::move(data_)) {}
++  bool atEnd() override { return pos == data.size(); }
++  size_t read(T *out, size_t n) override {
++    const size_t z = min(n, data.size() - pos);
++    if (z != 0) memcpy(out, data.data() + pos, z * sizeof(T));
++    pos += z;
++    return z;
++  }
++};
++
++uint64_t roundedFrames(uint64_t n, uint64_t fs, uint64_t fd) {
++  const uint64_t q = n / fs, r = n % fs;
++  const uint64_t numerator = r * fd;
++  return q * fd + numerator / fs + ((numerator % fs) >= (fs + 1) / 2 ? 1 : 0);
++}
++
++template<typename T>
++vector<T> resample(const vector<T> &input, uint32_t fs, uint32_t fd,
++                   unsigned l2dft, double aa, double guard,
++                   bool minPhase = false, unsigned l2min = 0, bool mt = true,
++                   size_t chunk = 257) {
++  auto source = make_shared<VectorOutlet<T>>(input);
++  SSRC<T> converter(source, fs, fd, l2dft, aa, guard, 1.0, minPhase, l2min, mt);
++  require(converter.getDelay() == 0, "published finite stream must report zero latency");
++
++  vector<T> out, buf(chunk);
++  for(;;) {
++    const size_t z = converter.read(buf.data(), buf.size());
++    if (z == 0) break;
++    out.insert(out.end(), buf.begin(), buf.begin() + z);
++    require(out.size() <= roundedFrames(input.size(), fs, fd), "resampler published beyond finite endpoint");
++  }
++  require(out.size() == roundedFrames(input.size(), fs, fd), "wrong finite output frame count");
++  require(converter.atEnd(), "resampler not at end after finite output");
++  return out;
++}
++
++template<typename T>
++void writeContainer(const filesystem::path &path, ContainerFormat container, uint16_t formatTag,
++                    uint16_t bits, size_t frames, unsigned channels, const uint8_t *subFormat = nullptr) {
++  vector<shared_ptr<StageOutlet<T>>> inputs;
++  for(unsigned ch=0;ch<channels;ch++) {
++    vector<T> v(frames);
++    for(size_t i=0;i<frames;i++) v[i] = static_cast<T>((i + 1) * 0.001 + ch * 0.125);
++    inputs.push_back(make_shared<VectorOutlet<T>>(std::move(v)));
++  }
++  WavFormat fmt(formatTag, channels, 48000, bits, subFormat != nullptr ? 3 : 0, subFormat);
++  {
++    WavWriter<T> writer(path.string(), fmt, container, inputs, 0, 37, true);
++    writer.execute();
++  }
++}
++
++void testContainers(const filesystem::path &tmp) {
++  struct ContainerCase { const char *name; ContainerFormat container; ParsedWave::Kind kind; };
++  const array<ContainerCase,3> containers = {{
++    {"riff", ContainerFormat::RIFF, ParsedWave::Kind::RIFF},
++    {"w64",  ContainerFormat::W64,  ParsedWave::Kind::W64},
++    {"rf64", ContainerFormat::RF64, ParsedWave::Kind::RF64},
++  }};
++  constexpr size_t frames = 257;
++  constexpr unsigned channels = 2;
++
++  for(const auto &c : containers) {
++    for(unsigned bits : {32U, 64U}) {
++      const auto path = tmp / (string("finite-float-") + to_string(bits) + "." + c.name);
++      if (bits == 32) writeContainer<float>(path, c.container, WavFormat::IEEE_FLOAT, bits, frames, channels);
++      else writeContainer<double>(path, c.container, WavFormat::IEEE_FLOAT, bits, frames, channels);
++
++      const auto p = parseWave(path);
++      require(p.kind == c.kind, "container kind mismatch");
++      require(p.formatTag == WavFormat::IEEE_FLOAT, "floating output is not IEEE float");
++      require(p.channels == channels && p.sampleRate == 48000, "floating fmt geometry mismatch");
++      require(p.bitsPerSample == bits && p.blockAlign == channels * bits / 8, "floating block alignment mismatch");
++      require(p.dataBytes == frames * p.blockAlign, "floating data extent mismatch");
++      require(p.hasFact, "floating output missing fact metadata");
++      require(p.factFrames == (c.kind == ParsedWave::Kind::RF64 ? 0xffffffffULL : frames),
++              "floating fact frame count/sentinel mismatch");
++      require(p.factBodyBytes == (c.kind == ParsedWave::Kind::W64 ? 8U : 4U), "wrong fact field width");
++      if (c.kind == ParsedWave::Kind::RF64)
++        require(p.ds64SampleCount == frames, "RF64 ds64 sample count mismatch");
++      filesystem::remove(path);
++    }
++
++    const auto extFloatPath = tmp / (string("finite-ext-float64.") + c.name);
++    writeContainer<double>(extFloatPath, c.container, WavFormat::EXTENSIBLE, 64, frames, channels,
++                           WavFormat::KSDATAFORMAT_SUBTYPE_IEEE_FLOAT);
++    const auto extFloat = parseWave(extFloatPath);
++    require(extFloat.formatTag == WavFormat::EXTENSIBLE && extFloat.subFormatTag == WavFormat::IEEE_FLOAT,
++            "extensible floating fmt subtype mismatch");
++    require(extFloat.dataBytes == frames * extFloat.blockAlign, "extensible floating data extent mismatch");
++    require(extFloat.hasFact, "extensible floating output missing fact metadata");
++    require(extFloat.factFrames == (c.kind == ParsedWave::Kind::RF64 ? 0xffffffffULL : frames),
++            "extensible floating fact frame count/sentinel mismatch");
++    if (c.kind == ParsedWave::Kind::RF64)
++      require(extFloat.ds64SampleCount == frames, "extensible RF64 ds64 sample count mismatch");
++    filesystem::remove(extFloatPath);
++
++    const auto intPath = tmp / (string("finite-int32.") + c.name);
++    writeContainer<int32_t>(intPath, c.container, WavFormat::PCM, 32, frames, channels);
++    const auto p = parseWave(intPath);
++    require(p.formatTag == WavFormat::PCM, "integer output is not PCM");
++    require(!p.hasFact, "integer PCM unexpectedly gained fact metadata");
++    require(p.dataBytes == frames * p.blockAlign, "integer data extent mismatch");
++    if (c.kind == ParsedWave::Kind::RF64)
++      require(p.ds64SampleCount == 0, "RF64 integer ds64 sample count changed");
++    filesystem::remove(intPath);
++
++    const auto extIntPath = tmp / (string("finite-ext-int32.") + c.name);
++    writeContainer<int32_t>(extIntPath, c.container, WavFormat::EXTENSIBLE, 32, frames, channels,
++                            WavFormat::KSDATAFORMAT_SUBTYPE_PCM);
++    const auto extInt = parseWave(extIntPath);
++    require(extInt.formatTag == WavFormat::EXTENSIBLE && extInt.subFormatTag == WavFormat::PCM,
++            "extensible integer fmt subtype mismatch");
++    require(!extInt.hasFact, "extensible integer PCM unexpectedly gained fact metadata");
++    require(extInt.dataBytes == frames * extInt.blockAlign, "extensible integer data extent mismatch");
++    if (c.kind == ParsedWave::Kind::RF64)
++      require(extInt.ds64SampleCount == 0, "extensible RF64 integer ds64 sample count changed");
++    filesystem::remove(extIntPath);
++  }
++}
++
++void testFrameExtents() {
++  struct RatePair { uint32_t fs, fd; };
++  const array<RatePair,4> rates = {{{44100,48000}, {48000,44100}, {48000,96000}, {96000,44100}}};
++  // 17/130 straddle the 44.1 -> 48 kHz half-frame boundary; 43/80/117
++  // straddle and hit the exact 48 -> 44.1 kHz half-frame tie.
++  const array<size_t,12> lengths = {{1,2,17,43,80,117,130,1023,1024,12544,44101,48001}};
++
++  for(const auto &rate : rates) {
++    for(size_t n : lengths) {
++      vector<double> input(n, 1.25);
++      const auto out = resample(input, rate.fs, rate.fd, 10, 96, 1);
++      require(out.size() == roundedFrames(n, rate.fs, rate.fd), "rate-pair extent mismatch");
++    }
++  }
++
++  struct Profile { unsigned l2; double aa, guard; };
++  vector<double> fixture(12544, -1.5);
++  for(const auto &profile : array<Profile,2>{{{14,145,2}, {16,170,4}}}) {
++    for(const auto &rate : array<RatePair,2>{{{44100,48000}, {48000,44100}}}) {
++      (void)resample(fixture, rate.fs, rate.fd, profile.l2, profile.aa, profile.guard, false, 0, true);
++      (void)resample(fixture, rate.fs, rate.fd, profile.l2, profile.aa, profile.guard, false, 0, false);
++    }
++  }
++
++  (void)resample(fixture, 44100, 48000, 14, 145, 2, false, 8, true);
++  (void)resample(fixture, 48000, 44100, 14, 145, 2, false, 8, false);
++  (void)resample(fixture, 44100, 48000, 14, 145, 2, true, 0, true);
++  (void)resample(fixture, 48000, 44100, 14, 145, 2, true, 0, false);
++}
++
++double impulseCentroid(const vector<double> &v) {
++  long double weighted = 0, energy = 0;
++  for(size_t i=0;i<v.size();i++) {
++    const long double e = static_cast<long double>(v[i]) * v[i];
++    weighted += static_cast<long double>(i) * e;
++    energy += e;
++  }
++  require(energy > 0, "impulse output has zero energy");
++  return static_cast<double>(weighted / energy);
++}
++
++void testTimelineMapping() {
++  constexpr size_t n = 20000, impulse = 10000;
++  vector<double> x(n, 0);
++  x[impulse] = 1;
++
++  for(const auto &rate : array<array<uint32_t,2>,2>{{{{44100,48000}}, {{48000,44100}}}}) {
++    const auto y = resample(x, rate[0], rate[1], 14, 145, 2);
++    const double expected = impulse * static_cast<double>(rate[1]) / rate[0];
++    const double centroid = impulseCentroid(y);
++    require(abs(centroid - expected) < 1e-3, "linear-phase impulse is not on the rational destination timeline");
++  }
++
++  vector<double> edgeSilence(12544, 0);
++  fill(edgeSilence.begin() + 1000, edgeSilence.end() - 1000, 0.75);
++  const auto silentEdges = resample(edgeSilence, 44100, 48000, 10, 96, 1);
++  require(silentEdges.size() == roundedFrames(edgeSilence.size(), 44100, 48000), "source silence changed finite extent");
++
++  vector<double> firstLastZero(12544, 0.5);
++  firstLastZero.front() = 0;
++  firstLastZero.back() = 0;
++  const auto zeroEndpoints = resample(firstLastZero, 48000, 44100, 10, 96, 1);
++  require(zeroEndpoints.size() == roundedFrames(firstLastZero.size(), 48000, 44100), "zero endpoint samples changed finite extent");
++
++  vector<double> left(12544, 0.25), right(12544, -0.75);
++  left[4000] = 1.5;
++  fill(right.begin(), right.begin() + 500, 0);
++  const auto leftOut = resample(left, 44100, 48000, 10, 96, 1);
++  const auto rightOut = resample(right, 44100, 48000, 10, 96, 1);
++  require(leftOut.size() == rightOut.size(), "multichannel material produced inconsistent channel extents");
++}
++
++void testNumerics() {
++  constexpr size_t segment = 12000;
++  const array<double,5> levels = {{1.5, -1.5, 2.0, -2.0, 1e-12}};
++  vector<double> x;
++  for(double level : levels) x.insert(x.end(), segment, level);
++
++  const auto y = resample(x, 44100, 48000, 14, 145, 2);
++  for(size_t s=0;s<levels.size();s++) {
++    const uint64_t srcMid = s * segment + segment / 2;
++    const uint64_t dstMid = roundedFrames(srcMid, 44100, 48000);
++    require(dstMid < y.size(), "numeric probe outside output");
++    require(isfinite(y[dstMid]), "non-finite resampler output");
++    const double tolerance = abs(levels[s]) < 1e-9 ? 1e-15 : 5e-6;
++    require(abs(y[dstMid] - levels[s]) <= tolerance,
++            "finite-stream repair changed plateau gain");
++  }
++  require(abs(y[roundedFrames(2 * segment + segment / 2, 44100, 48000)]) > 1.0,
++          "above-full-scale floating sample was clipped");
++}
++
++} // namespace
++
++int main(int argc, char **argv) {
++  try {
++    require(argc == 2, "usage: test_finite_stream <temporary-directory>");
++    const filesystem::path tmp(argv[1]);
++    filesystem::create_directories(tmp);
++
++    testContainers(tmp);
++    testFrameExtents();
++    testTimelineMapping();
++    testNumerics();
++
++    cout << "finite stream contract: PASS" << endl;
++    return 0;
++  } catch(const exception &ex) {
++    cerr << "finite stream contract: FAIL: " << ex.what() << endl;
++    return 1;
++  }
++}

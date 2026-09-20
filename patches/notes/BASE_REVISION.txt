@@ -1,0 +1,20 @@
+Canonical repository: https://github.com/barstoolbluz/ssrc
+Base revision: b769add0756157ea88d1bbf9023e06c437485a79
+Base subject: Fix Darwin build: add visibility flags for static SLEEF linking
+SLEEF revision: 0c063a8f0e01c22fa1e473effd2e7a0c69b4963a
+
+Topic branch: tonepoet/finite-stream-contract
+Topic commits, oldest first:
+ede6049739f8d9aafe0f5e826eb34f421eb1e3a0 wavwriter: emit floating-point fact frame counts
+7a4096d9b62ddc76f66af7be671e42b4db5746d5 resampler: publish the finite aligned timeline
+a08f79956de3c58af20d27eea386a0d170deb846 tests: cover floating containers and finite timelines
+Topic tree: 2323ef992784ec072709c136221ac4954cafb4bd
+
+Fresh git-am verification checkout:
+Tip after applying exported patches: 35dd25311b27fd4adcd6c4c15d57c8d80dd10228
+Tree after applying exported patches: 2323ef992784ec072709c136221ac4954cafb4bd
+Result: tree ID exactly matches the topic branch tree.
+
+Uploaded source archive SHA-256:
+0dc29dc9aa0fe1c751e1f2e3feaa3bd333f3b608f61c5f211b38dfa4bd2b4897  ssrc-b769add-with-git.tar.gz
+The supplied .sha256 file contained the same digest.

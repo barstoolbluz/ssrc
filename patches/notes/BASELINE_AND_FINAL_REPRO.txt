@@ -1,0 +1,26 @@
+base.riff: container=RIFF tag=3 ch=1 fs=48000 bits=64 align=8 frames=35499 data_bytes=283992
+  chunks: [('fmt', 16, 16), ('data', 283992, 283992)]
+  fact: None
+  >1e-12: first=0 last=35483 leading=0 trailing=15 span=35484 maxabs=1.040426241906439
+base.w64: container=W64 tag=3 ch=1 fs=48000 bits=64 align=8 frames=35499 data_bytes=283992
+  chunks: [('fmt', 40, 16), ('data', 284016, 283992)]
+  fact: None
+  >1e-12: first=0 last=35483 leading=0 trailing=15 span=35484 maxabs=1.040426241906439
+base.rf64: container=RF64 tag=3 ch=1 fs=48000 bits=64 align=8 frames=35499 data_bytes=283992
+  chunks: [('ds64', 28, 28), ('fmt', 16, 16), ('data', 4294967295, 283992)]
+  fact: None
+  ds64: (284064, 283992, 0, 0)
+  >1e-12: first=0 last=35483 leading=0 trailing=15 span=35484 maxabs=1.040426241906439
+patch.riff: container=RIFF tag=3 ch=1 fs=48000 bits=64 align=8 frames=13653 data_bytes=109224
+  chunks: [('fmt', 16, 16), ('fact', 4, 4), ('data', 109224, 109224)]
+  fact: (4, '55350000')
+  >1e-12: first=0 last=13652 leading=0 trailing=0 span=13653 maxabs=1.112232027866376
+patch.w64: container=W64 tag=3 ch=1 fs=48000 bits=64 align=8 frames=13653 data_bytes=109224
+  chunks: [('fmt', 40, 16), ('fact', 32, 8), ('data', 109248, 109224)]
+  fact: (8, '5535000000000000')
+  >1e-12: first=0 last=13652 leading=0 trailing=0 span=13653 maxabs=1.112232027866376
+patch.rf64: container=RF64 tag=3 ch=1 fs=48000 bits=64 align=8 frames=13653 data_bytes=109224
+  chunks: [('ds64', 28, 28), ('fmt', 16, 16), ('fact', 4, 4), ('data', 4294967295, 109224)]
+  fact: (4, 'ffffffff')
+  ds64: (109308, 109224, 13653, 0)
+  >1e-12: first=0 last=13652 leading=0 trailing=0 span=13653 maxabs=1.112232027866376

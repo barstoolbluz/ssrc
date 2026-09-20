@@ -50,6 +50,10 @@ in stdenv.mkDerivation rec {
 
   src = ../../.;
 
+  # Vendored downstream fix, applied at build time (see patches/README.md).
+  # Keeps src/ at the upstream base so the change stays easy to forward-port.
+  patches = [ ../../patches/ssrc-tonepoet-finite-stream.patch ];
+
   nativeBuildInputs = [
     cmake
     git
